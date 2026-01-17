@@ -1,7 +1,7 @@
 {
   "buildCommand": "npm run build:vercel",
-  "installCommand": "npm install --legacy-peer-deps",
   "outputDirectory": "dist/client",
+  "installCommand": "npm install --legacy-peer-deps",
   "rewrites": [
     {
       "source": "/api/(.*)",
