@@ -148,7 +148,7 @@ export const lazyLoadComponent = <T extends ComponentType<any>>(
       
       // If load was too fast, add artificial delay to prevent flashing
       if (remaining > 0) {
-        return new Promise(resolve => {
+        return new Promise<{ default: T }>(resolve => {
           setTimeout(() => resolve(module), remaining);
         });
       }

@@ -1,18 +1,27 @@
 /*
- * Register Page - User registration form
+ * Register Page - User registration form with Firebase
  * Design: Modern authentication form with validation
  */
 
 import { useState } from "react";
-import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Link } from "wouter";
-import { ArrowLeft, Eye, EyeOff, Check, AlertCircle, Sparkles, ArrowRight } from "lucide-react";
+import { Link, useLocation } from "wouter";
+import { ArrowLeft, Eye, EyeOff, Check, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { 
+  createUserWithEmailAndPassword,
+  updateProfile,
+  signInWithPopup,
+  GoogleAuthProvider,
+  GithubAuthProvider,
+  OAuthProvider
+} from "firebase/auth";
+import { auth } from "@/lib/firebase";
 
 export default function Register() {
+  const [, setLocation] = useLocation();
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -34,13 +43,19 @@ export default function Register() {
     }));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSubmitting(true);
 
-    // Simple validation
-    if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword || !formData.termsAccepted) {
+    // Validation
+    if (!formData.name || !formData.email || !formData.password || !formData.confirmPassword) {
       toast.error("Vul alle verplichte velden in");
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (!formData.termsAccepted) {
+      toast.error("Accepteer de voorwaarden om door te gaan");
       setIsSubmitting(false);
       return;
     }
@@ -51,52 +66,114 @@ export default function Register() {
       return;
     }
 
-    if (!formData.email.includes("@")) {
-      toast.error("Voer een geldig e-mailadres in");
+    if (formData.password.length < 6) {
+      toast.error("Wachtwoord moet minimaal 6 tekens bevatten");
       setIsSubmitting(false);
       return;
     }
 
-    if (formData.password.length < 8) {
-      toast.error("Wachtwoord moet minimaal 8 tekens bevatten");
-      setIsSubmitting(false);
-      return;
-    }
+    try {
+      // Create user
+      const userCredential = await createUserWithEmailAndPassword(
+        auth,
+        formData.email,
+        formData.password
+      );
 
-    // Simulate API call
-    setTimeout(() => {
+      // Update profile with display name
+      await updateProfile(userCredential.user, {
+        displayName: formData.name
+      });
+
       toast.success("Account succesvol aangemaakt!");
-      // In a real app, you would redirect to login or dashboard here
+      setLocation("/dashboard");
+    } catch (error: any) {
+      console.error("Registration error:", error);
+      
+      // User-friendly error messages
+      if (error.code === "auth/email-already-in-use") {
+        toast.error("Dit e-mailadres is al in gebruik");
+      } else if (error.code === "auth/invalid-email") {
+        toast.error("Ongeldig e-mailadres");
+      } else if (error.code === "auth/weak-password") {
+        toast.error("Wachtwoord is te zwak");
+      } else {
+        toast.error("Er is een fout opgetreden bij het aanmaken van het account");
+      }
+    } finally {
       setIsSubmitting(false);
-    }, 1500);
+    }
   };
 
-  const passwordStrength = () => {
-    if (!formData.password) return 0;
-    let strength = 0;
-    if (formData.password.length >= 8) strength++;
-    if (/[A-Z]/.test(formData.password)) strength++;
-    if (/[0-9]/.test(formData.password)) strength++;
-    if (/[^A-Za-z0-9]/.test(formData.password)) strength++;
-    return strength;
+  const handleGoogleSignup = async () => {
+    try {
+      const provider = new GoogleAuthProvider();
+      await signInWithPopup(auth, provider);
+      toast.success("Account succesvol aangemaakt met Google!");
+      setLocation("/dashboard");
+    } catch (error: any) {
+      console.error("Google signup error:", error);
+      if (error.code === "auth/popup-closed-by-user") {
+        toast.error("Registratie geannuleerd");
+      } else {
+        toast.error("Er is een fout opgetreden bij Google registratie");
+      }
+    }
   };
 
-  const getPasswordStrengthColor = () => {
-    const strength = passwordStrength();
-    if (strength <= 1) return "bg-red-500";
-    if (strength <= 2) return "bg-yellow-500";
-    if (strength <= 3) return "bg-blue-500";
-    return "bg-cyan-500"; // Changed from bg-green-500
+  const handleGithubSignup = async () => {
+    try {
+      const provider = new GithubAuthProvider();
+      await signInWithPopup(auth, provider);
+      toast.success("Account succesvol aangemaakt met GitHub!");
+      setLocation("/dashboard");
+    } catch (error: any) {
+      console.error("GitHub signup error:", error);
+      if (error.code === "auth/popup-closed-by-user") {
+        toast.error("Registratie geannuleerd");
+      } else if (error.code === "auth/account-exists-with-different-credential") {
+        toast.error("Dit e-mailadres is al gekoppeld aan een ander account");
+      } else {
+        toast.error("Er is een fout opgetreden bij GitHub registratie");
+      }
+    }
   };
+
+  const handleAppleSignup = async () => {
+    try {
+      const provider = new OAuthProvider('apple.com');
+      await signInWithPopup(auth, provider);
+      toast.success("Account succesvol aangemaakt met Apple!");
+      setLocation("/dashboard");
+    } catch (error: any) {
+      console.error("Apple signup error:", error);
+      if (error.code === "auth/popup-closed-by-user") {
+        toast.error("Registratie geannuleerd");
+      } else {
+        toast.error("Er is een fout opgetreden bij Apple registratie");
+      }
+    }
+  };
+
+  // Password strength indicator
+  const getPasswordStrength = (password: string) => {
+    if (!password) return { strength: 0, label: "" };
+    if (password.length < 6) return { strength: 1, label: "Zwak", color: "bg-red-500" };
+    if (password.length < 10) return { strength: 2, label: "Redelijk", color: "bg-yellow-500" };
+    if (password.length < 14) return { strength: 3, label: "Goed", color: "bg-green-500" };
+    return { strength: 4, label: "Sterk", color: "bg-green-600" };
+  };
+
+  const passwordStrength = getPasswordStrength(formData.password);
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2 bg-background">
       {/* Left Side - Visual/Brand */}
       <div className="hidden lg:flex flex-col justify-between p-12 bg-zinc-900 relative overflow-hidden">
         {/* Background Effects */}
-        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?q=80&w=2670&auto=format&fit=crop')] bg-cover bg-center opacity-20" />
+        <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1497366216548-37526070297c?q=80&w=2669&auto=format&fit=crop')] bg-cover bg-center opacity-20" />
         <div className="absolute inset-0 bg-gradient-to-t from-zinc-900/90 via-zinc-900/50 to-zinc-900/20" />
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_30%,rgba(6,182,212,0.1),transparent)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_70%,rgba(6,182,212,0.1),transparent)]" />
 
         {/* Content */}
         <div className="relative z-10">
@@ -108,36 +185,30 @@ export default function Register() {
           </Link>
         </div>
 
-        <div className="relative z-10 max-w-lg">
-          <blockquote className="space-y-6">
-            <p className="text-2xl font-light font-display leading-relaxed text-white">
-              "Archon heeft onze efficiëntie volledig veranderd. Wat vroeger dagen kostte, doen we nu in uren met behulp van hun AI-tools."
-            </p>
-            <footer className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-full bg-cyan-500/20 flex items-center justify-center text-cyan-400 font-bold border border-cyan-500/30">
-                JD
+        <div className="relative z-10 max-w-lg space-y-8">
+          <h2 className="text-3xl font-bold text-white">
+            Begin vandaag met slimmer projectbeheer
+          </h2>
+          
+          <div className="space-y-4">
+            {[
+              "Real-time inzicht in al je projecten",
+              "AI-gedreven automatisering",
+              "Volledige financiële controle",
+              "Veilige cloud opslag"
+            ].map((feature, index) => (
+              <div key={index} className="flex items-center gap-3 text-white">
+                <div className="w-6 h-6 rounded-full bg-cyan-500/20 flex items-center justify-center border border-cyan-500/30">
+                  <Check className="w-4 h-4 text-cyan-400" />
+                </div>
+                <span>{feature}</span>
               </div>
-              <div>
-                <div className="font-semibold text-white">Jan De Vries</div>
-                <div className="text-sm text-zinc-400">Directeur, De Vries Appingedam</div>
-              </div>
-            </footer>
-          </blockquote>
+            ))}
+          </div>
         </div>
 
-        <div className="relative z-10 flex items-center gap-4 text-sm text-zinc-400">
-          <div className="flex items-center gap-1">
-            <Check className="w-4 h-4 text-cyan-500" />
-            <span>AI-gestuurde offertes</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <Check className="w-4 h-4 text-cyan-500" />
-            <span>Slim projectbeheer</span>
-          </div>
-          <div className="flex items-center gap-1">
-            <Check className="w-4 h-4 text-cyan-500" />
-            <span>24/7 Inzichten</span>
-          </div>
+        <div className="relative z-10 text-zinc-400 text-sm">
+          Sluit je aan bij 500+ bouwprofessionals die Archon gebruiken
         </div>
       </div>
 
@@ -152,164 +223,157 @@ export default function Register() {
         <div className="w-full max-w-md space-y-8">
           <div className="text-center lg:text-left space-y-2">
             <h1 className="text-3xl font-bold tracking-tight display-text">
-              Maak een account aan
+              Maak je account aan
             </h1>
             <p className="text-muted-foreground">
-              Start vandaag nog met slimmer bouwen. <br className="hidden sm:inline" />
-              14 dagen gratis uitproberen, geen creditcard nodig.
+              Start gratis, geen creditcard vereist.
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="space-y-4">
-              <div className="grid grid-cols-1 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Volledige naam</Label>
-                  <div className="relative">
-                    <Input
-                      id="name"
-                      name="name"
-                      placeholder="Bijv. Jan de Vries"
-                      value={formData.name}
-                      onChange={handleChange}
-                      className="pl-10 bg-white/5 border-white/10 focus:border-cyan-500/50"
-                      required
-                    />
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
-                    </div>
-                    {formData.name && (
-                      <Check className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-cyan-500" />
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="email">E-mailadres</Label>
-                  <div className="relative">
-                    <Input
-                      id="email"
-                      name="email"
-                      type="email"
-                      placeholder="naam@bedrijf.nl"
-                      value={formData.email}
-                      onChange={handleChange}
-                      className="pl-10 bg-white/5 border-white/10 focus:border-cyan-500/50"
-                      required
-                    />
-                    <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><rect width="20" height="16" x="2" y="4" rx="2" /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" /></svg>
-                    </div>
-                    {formData.email && formData.email.includes("@") && (
-                      <Check className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-cyan-500" />
-                    )}
-                  </div>
-                </div>
+              <div className="space-y-2">
+                <Label htmlFor="name">Volledige naam</Label>
+                <Input
+                  id="name"
+                  name="name"
+                  type="text"
+                  placeholder="Jan de Vries"
+                  value={formData.name}
+                  onChange={handleChange}
+                  className="bg-white/5 border-white/10 focus:border-cyan-500/50"
+                  required
+                  autoComplete="name"
+                />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="company">Bedrijfsnaam <span className="text-muted-foreground text-xs font-normal">(Optioneel)</span></Label>
+                <Label htmlFor="email">E-mailadres</Label>
+                <Input
+                  id="email"
+                  name="email"
+                  type="email"
+                  placeholder="naam@bedrijf.nl"
+                  value={formData.email}
+                  onChange={handleChange}
+                  className="bg-white/5 border-white/10 focus:border-cyan-500/50"
+                  required
+                  autoComplete="email"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="company">Bedrijfsnaam (optioneel)</Label>
+                <Input
+                  id="company"
+                  name="company"
+                  type="text"
+                  placeholder="Uw bedrijf"
+                  value={formData.company}
+                  onChange={handleChange}
+                  className="bg-white/5 border-white/10 focus:border-cyan-500/50"
+                  autoComplete="organization"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password">Wachtwoord</Label>
                 <div className="relative">
                   <Input
-                    id="company"
-                    name="company"
-                    placeholder="Bijv. De Vries Bouw B.V."
-                    value={formData.company}
+                    id="password"
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Minimaal 6 tekens"
+                    value={formData.password}
                     onChange={handleChange}
-                    className="pl-10 bg-white/5 border-white/10 focus:border-cyan-500/50"
+                    className="pr-10 bg-white/5 border-white/10 focus:border-cyan-500/50"
+                    required
+                    autoComplete="new-password"
                   />
-                  <div className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4"><path d="M3 21h18" /><path d="M5 21V7l8-4 8 4v14" /><path d="M17 21v-8.86" /><path d="M9 21V6.13" /></svg>
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="password">Wachtwoord</Label>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      name="password"
-                      type={showPassword ? "text" : "password"}
-                      value={formData.password}
-                      onChange={handleChange}
-                      className="pr-10 bg-white/5 border-white/10 focus:border-cyan-500/50"
-                      placeholder="Min. 8 tekens"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="confirmPassword">Bevestigen</Label>
-                  <div className="relative">
-                    <Input
-                      id="confirmPassword"
-                      name="confirmPassword"
-                      type={showConfirmPassword ? "text" : "password"}
-                      value={formData.confirmPassword}
-                      onChange={handleChange}
-                      className="pr-10 bg-white/5 border-white/10 focus:border-cyan-500/50"
-                      placeholder="Herhaal wachtwoord"
-                      required
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                    >
-                      {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {formData.password && (
-                <div className="space-y-1 p-3 rounded-lg bg-white/5 border border-white/5">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs text-muted-foreground">Wachtwoordsterkte</span>
-                    <span className={`text-xs font-medium ${passwordStrength() <= 1 ? "text-red-400" :
-                      passwordStrength() <= 2 ? "text-yellow-400" :
-                        passwordStrength() <= 3 ? "text-blue-400" : "text-cyan-400"
-                      }`}>
-                      {passwordStrength() <= 1 ? "Zwak" :
-                        passwordStrength() <= 2 ? "Matig" :
-                          passwordStrength() <= 3 ? "Goed" : "Sterk"}
-                    </span>
-                  </div>
-                  <div className="flex gap-1 h-1">
-                    {[1, 2, 3, 4].map((level) => (
-                      <div
-                        key={level}
-                        className={`flex-1 rounded-full transition-all duration-300 ${passwordStrength() >= level
-                          ? getPasswordStrengthColor().replace('bg-', level <= passwordStrength() ? 'bg-' : 'bg-opacity-30 bg-')
-                          : 'bg-white/10'
+                
+                {/* Password strength indicator */}
+                {formData.password && (
+                  <div className="space-y-1">
+                    <div className="flex gap-1">
+                      {[1, 2, 3, 4].map((level) => (
+                        <div
+                          key={level}
+                          className={`h-1 flex-1 rounded-full transition-colors ${
+                            level <= passwordStrength.strength
+                              ? passwordStrength.color
+                              : "bg-white/10"
                           }`}
-                      />
-                    ))}
+                        />
+                      ))}
+                    </div>
+                    {passwordStrength.label && (
+                      <p className="text-xs text-muted-foreground">
+                        Wachtwoord sterkte: {passwordStrength.label}
+                      </p>
+                    )}
                   </div>
-                </div>
-              )}
+                )}
+              </div>
 
-              <div className="flex items-start space-x-3 pt-2">
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Bevestig wachtwoord</Label>
+                <div className="relative">
+                  <Input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="Herhaal je wachtwoord"
+                    value={formData.confirmPassword}
+                    onChange={handleChange}
+                    className="pr-10 bg-white/5 border-white/10 focus:border-cyan-500/50"
+                    required
+                    autoComplete="new-password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOff className="w-4 h-4" />
+                    ) : (
+                      <Eye className="w-4 h-4" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex items-start space-x-2 pt-2">
                 <input
                   id="termsAccepted"
                   name="termsAccepted"
                   type="checkbox"
                   checked={formData.termsAccepted}
                   onChange={handleChange}
-                  className="mt-1 h-4 w-4 rounded border-white/20 bg-white/5 text-cyan-500 focus:ring-cyan-500"
+                  className="h-4 w-4 mt-0.5 rounded border-white/20 bg-white/5 text-cyan-500 focus:ring-cyan-500"
                   required
                 />
-                <Label htmlFor="termsAccepted" className="text-sm text-muted-foreground leading-normal font-normal">
-                  Ik ga akkoord met de <Link href="#" className="text-cyan-500 hover:underline">gebruikersvoorwaarden</Link> en het <Link href="#" className="text-cyan-500 hover:underline">privacybeleid</Link>.
+                <Label htmlFor="termsAccepted" className="text-sm text-muted-foreground font-normal">
+                  Ik ga akkoord met de{" "}
+                  <Link href="/terms" className="text-cyan-500 hover:underline">
+                    algemene voorwaarden
+                  </Link>{" "}
+                  en{" "}
+                  <Link href="/privacy" className="text-cyan-500 hover:underline">
+                    privacybeleid
+                  </Link>
                 </Label>
               </div>
             </div>
@@ -322,23 +386,58 @@ export default function Register() {
               {isSubmitting ? (
                 <>
                   <span className="animate-spin mr-2">🌀</span>
-                  Account wordt aangemaakt...
+                  Account aanmaken...
                 </>
               ) : (
-                <>
-                  Start gratis proefperiode
-                  <ArrowRight className="ml-2 w-4 h-4" />
-                </>
+                "Maak gratis account"
               )}
             </Button>
 
-            <div className="text-center text-sm text-muted-foreground">
-              Heb je al een account?{" "}
-              <Link href="/login" className="text-cyan-500 hover:underline font-medium">
-                Inloggen
-              </Link>
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-white/10" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="px-2 bg-background text-muted-foreground">
+                  Of registreer met
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                className="border-white/10 hover:border-white/20 hover:bg-white/5"
+                onClick={handleGoogleSignup}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" className="w-4 h-4"><path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .533 5.347.533 12S5.867 24 12.48 24c3.44 0 6.053-1.147 8.16-3.293 2.133-2.133 2.907-5.133 2.907-7.467 0-.747-.053-1.467-.16-2.133H12.48z" /></svg>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="border-white/10 hover:border-white/20 hover:bg-white/5"
+                onClick={handleGithubSignup}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" className="w-4 h-4"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z" /></svg>
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                className="border-white/10 hover:border-white/20 hover:bg-white/5"
+                onClick={handleAppleSignup}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" className="w-4 h-4"><path d="M17.05 20.28c-.98.95-2.05 1.64-3.09 1.61-1.01-.03-2.66-1.05-4.22-1.05-1.55 0-3.35 1.09-4.32 1.11-1.04.03-2.12-.73-3.07-1.67-.99-.98-1.58-1.92-1.89-2.58-.3-1.06-.52-2.5.21-4.08.73-1.57 2.29-2.58 3.73-2.58 1.11 0 2.24.52 3.02 1.11.78.6 1.46.73 2.08.73.63 0 1.83-.58 3.28-1.11 1.45-.53 2.76-.21 3.49.1.72.31 1.63.89 2.19 1.77-1.82 1.15-2.06 3.65-2.06 4.38 0 .73.57 2.5 2.13 3.23-.26 1.15-1.09 2.34-1.48 2.74zM12.03 7.25c-.15-1.57.8-3.06 2.31-3.79.16 1.34-1.04 2.78-2.31 3.79z" /></svg>
+              </Button>
             </div>
           </form>
+
+          <div className="mt-8 text-center text-sm text-muted-foreground">
+            Heb je al een account?{" "}
+            <Link href="/login" className="text-cyan-500 hover:underline font-medium">
+              Log in
+            </Link>
+          </div>
         </div>
       </div>
     </div>

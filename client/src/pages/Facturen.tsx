@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   AlertCircle,
   Send,
+  Sparkles,
   Filter,
   Download,
   ArrowUpDown,
