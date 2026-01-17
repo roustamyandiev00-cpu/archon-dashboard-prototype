@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="nl">
+
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1" />
+    <title>ARCHON.AI - Dashboard</title>
+    <meta name="description" content="AI-aangedreven software voor bouwprofessionals. Maak professionele offertes in 2 minuten met onze slimme AI." />
+    
+    <!-- Favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    
+    <!-- Google Fonts: Sora (Display/Headings) + Inter (Body) + Fira Code (Monospace) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;500;600&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    
+    <style>
+      /* Font family definitions */
+      :root {
+        --font-display: 'Sora', system-ui, sans-serif;
+        --font-body: 'Inter', system-ui, sans-serif;
+        --font-mono: 'Fira Code', monospace;
+      }
+      
+      body {
+        font-family: var(--font-body);
+      }
+      
+      h1, h2, h3, h4, h5, h6 {
+        font-family: var(--font-display);
+      }
+      
+      code, pre, .font-mono {
+        font-family: var(--font-mono);
+      }
+    </style>
+  </head>
+
+  <body class="dark">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+
+</html>
