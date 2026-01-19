@@ -77,7 +77,8 @@ export default function Register() {
       await updateProfile(credential.user, { displayName: formData.name });
       await ensureUserProfile(credential.user, {
         name: formData.name,
-        companyName: formData.company
+        companyName: formData.company,
+        registrationMethod: "email"
       });
 
       toast.success("Account succesvol aangemaakt!");
@@ -111,7 +112,10 @@ export default function Register() {
       }
 
       const result = await signInWithPopup(auth, authProvider);
-      await ensureUserProfile(result.user);
+      const registrationMethod = provider.toLowerCase() as "google" | "github" | "apple";
+      await ensureUserProfile(result.user, {
+        registrationMethod
+      });
       toast.success(`Account aangemaakt met ${provider}!`);
       setLocation("/app/pricing");
     } catch (error: unknown) {

@@ -1,5 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import { createCheckoutSession, verifyFirebaseToken } from "../../server/billing";
+import { createCheckoutSession, verifyFirebaseToken } from "../lib/billing";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== "POST") {

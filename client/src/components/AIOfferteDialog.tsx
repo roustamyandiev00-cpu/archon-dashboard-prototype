@@ -17,10 +17,14 @@ import {
   DollarSign,
   FileText,
   Camera,
-  Wand2
+  Wand2,
+  Mic,
+  MicOff
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
+import { auth } from "@/lib/firebase";
+import { useSpeechRecognition } from "@/hooks/useSpeechRecognition";
 
 interface AIOfferteData {
   client: string;
@@ -46,6 +50,7 @@ export function AIOfferteDialog({ open, onOpenChange, onCreate }: AIOfferteDialo
   const [projectType, setProjectType] = useState("");
   const [uploadedImages, setUploadedImages] = useState<File[]>([]);
   const [imagePreview, setImagePreview] = useState<string[]>([]);
+  const [uploadedImageUrls, setUploadedImageUrls] = useState<string[]>([]); // URLs after upload to storage
   
   // AI Analysis results
   const [dimensions, setDimensions] = useState<{ width: number; height: number; area: number } | null>(null);
@@ -57,6 +62,40 @@ export function AIOfferteDialog({ open, onOpenChange, onCreate }: AIOfferteDialo
   const [aiSuggestedPrice, setAiSuggestedPrice] = useState(0);
   
   const [generatedData, setGeneratedData] = useState<AIOfferteData | null>(null);
+
+  // Speech recognition for client name
+  const clientSpeech = useSpeechRecognition({
+    onResult: (text, isFinal) => {
+      if (isFinal) {
+        setClientName(text);
+        clientSpeech.stopListening();
+      }
+    },
+  });
+
+  // Speech recognition for project type
+  const projectSpeech = useSpeechRecognition({
+    onResult: (text, isFinal) => {
+      if (isFinal) {
+        setProjectType(text);
+        projectSpeech.stopListening();
+      }
+    },
+  });
+
+  // Speech recognition for description
+  const descriptionSpeech = useSpeechRecognition({
+    continuous: true,
+    onResult: (text, isFinal) => {
+      if (isFinal) {
+        setAiDescription(text);
+        descriptionSpeech.stopListening();
+      } else {
+        // Update in real-time for better UX
+        setAiDescription(text);
+      }
+    },
+  });
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -86,6 +125,60 @@ export function AIOfferteDialog({ open, onOpenChange, onCreate }: AIOfferteDialo
     setImagePreview(newPreviews);
   };
 
+  const uploadPhotosToStorage = async (): Promise<string[]> => {
+    if (uploadedImages.length === 0) {
+      return [];
+    }
+
+    // Get auth token
+    const user = auth.currentUser;
+    if (!user) {
+      throw new Error("Niet ingelogd");
+    }
+
+    const token = await user.getIdToken();
+
+    // Convert images to base64
+    const photoPromises = uploadedImages.map(async (file) => {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          const base64Data = result.split(',')[1];
+          resolve(base64Data);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      return {
+        name: file.name,
+        contentType: file.type,
+        data: base64,
+      };
+    });
+
+    const photos = await Promise.all(photoPromises);
+
+    // Upload to storage
+    const response = await fetch("/api/offertes/upload-photos", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${token}`,
+      },
+      body: JSON.stringify({ photos }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Upload mislukt");
+    }
+
+    const data = await response.json();
+    return data.urls || [];
+  };
+
   const analyzeImages = async () => {
     if (uploadedImages.length === 0) {
       toast.error("Upload minimaal 1 foto voor AI analyse");
@@ -95,10 +188,66 @@ export function AIOfferteDialog({ open, onOpenChange, onCreate }: AIOfferteDialo
     setLoading(true);
     
     try {
-      // Simulate AI analysis (in production, call OpenAI Vision API)
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      // First upload photos to storage
+      toast.info("Foto's worden geüpload...");
+      const imageUrls = await uploadPhotosToStorage();
+      setUploadedImageUrls(imageUrls);
+      toast.success("Foto's geüpload!");
+
+      // Convert images to base64 for AI analysis (or use URLs if API supports it)
+      const imagePromises = uploadedImages.map(file => {
+        return new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result as string);
+          reader.onerror = reject;
+          reader.readAsDataURL(file);
+        });
+      });
+
+      const base64Images = await Promise.all(imagePromises);
+
+      // Call API for AI analysis and offerte generation
+      const response = await fetch("/api/offertes/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          client: clientName,
+          projectType: projectType,
+          description: "",
+          images: base64Images, // Still send base64 for AI analysis
+          imageUrls: imageUrls, // Also send URLs for storage reference
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("API call failed");
+      }
+
+      const data = await response.json();
       
-      // Mock AI analysis results
+      if (data.dimensions) {
+        setDimensions(data.dimensions);
+      }
+      
+      if (data.description) {
+        setAiDescription(data.description);
+      }
+      
+      if (data.total) {
+        setAiSuggestedPrice(data.total);
+      } else if (data.items && data.items.length > 0) {
+        const total = data.items.reduce((sum: number, item: any) => sum + (item.price || 0), 0);
+        setAiSuggestedPrice(total);
+      }
+      
+      toast.success("Foto's geanalyseerd en offerte gegenereerd!");
+      setStep(3);
+    } catch (error) {
+      console.error("AI Analysis error:", error);
+      
+      // Fallback to mock data if API fails
       const mockDimensions = {
         width: Math.floor(Math.random() * 5) + 3, // 3-8m
         height: Math.floor(Math.random() * 3) + 2.5, // 2.5-5.5m
@@ -116,11 +265,8 @@ export function AIOfferteDialog({ open, onOpenChange, onCreate }: AIOfferteDialo
       setAiDescription(mockDescription);
       setAiSuggestedPrice(Math.round(mockPrice));
       
-      toast.success("Foto's geanalyseerd!");
+      toast.success("Foto's geanalyseerd (fallback modus)!");
       setStep(3);
-    } catch (error) {
-      console.error("AI Analysis error:", error);
-      toast.error("Analyse mislukt. Probeer het opnieuw.");
     } finally {
       setLoading(false);
     }
@@ -130,24 +276,74 @@ export function AIOfferteDialog({ open, onOpenChange, onCreate }: AIOfferteDialo
     setLoading(true);
     
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
       const finalPrice = pricingMode === "manual" 
         ? parseFloat(manualPrice) || 0
         : aiSuggestedPrice;
+
+      // If we have images but no AI data yet, call API
+      if (uploadedImages.length > 0 && !dimensions && !aiDescription) {
+        const imagePromises = uploadedImages.map(file => {
+          return new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+        });
+
+        const base64Images = await Promise.all(imagePromises);
+
+        const response = await fetch("/api/offertes/generate", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            client: clientName,
+            projectType: projectType,
+            description: "",
+            images: base64Images,
+            dimensions: dimensions || undefined,
+            manualPrice: pricingMode === "manual" ? finalPrice : undefined,
+          }),
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          
+          const offerteData: AIOfferteData = {
+            client: clientName,
+            description: data.description || aiDescription,
+            items: data.items || [
+              {
+                desc: data.description || aiDescription,
+                price: finalPrice
+              }
+            ],
+            total: data.total || finalPrice,
+            images: uploadedImageUrls.length > 0 ? uploadedImageUrls : imagePreview, // Use uploaded URLs if available
+            dimensions: data.dimensions || dimensions || undefined
+          };
+          
+          setGeneratedData(offerteData);
+          setStep(4);
+          toast.success("Offerte concept klaar!");
+          return;
+        }
+      }
       
+      // Fallback: use existing data
       const data: AIOfferteData = {
         client: clientName,
-        description: aiDescription,
+        description: aiDescription || `${projectType} voor ${clientName}`,
         items: [
           {
-            desc: aiDescription,
+            desc: aiDescription || `${projectType} voor ${clientName}`,
             price: finalPrice
           }
         ],
         total: finalPrice,
-        images: imagePreview,
+        images: uploadedImageUrls.length > 0 ? uploadedImageUrls : imagePreview, // Use uploaded URLs if available
         dimensions: dimensions || undefined
       };
       
@@ -169,6 +365,7 @@ export function AIOfferteDialog({ open, onOpenChange, onCreate }: AIOfferteDialo
     setUploadedImages([]);
     imagePreview.forEach(url => URL.revokeObjectURL(url));
     setImagePreview([]);
+    setUploadedImageUrls([]);
     setDimensions(null);
     setAiDescription("");
     setPricingMode("ai");
@@ -176,6 +373,17 @@ export function AIOfferteDialog({ open, onOpenChange, onCreate }: AIOfferteDialo
     setAiSuggestedPrice(0);
     setGeneratedData(null);
     setLoading(false);
+    // Stop all speech recognition if available
+    try {
+      if (clientSpeech.isListening) clientSpeech.stopListening();
+      if (projectSpeech.isListening) projectSpeech.stopListening();
+      if (descriptionSpeech.isListening) descriptionSpeech.stopListening();
+      clientSpeech.resetTranscript();
+      projectSpeech.resetTranscript();
+      descriptionSpeech.resetTranscript();
+    } catch (e) {
+      // Ignore errors if hooks not ready
+    }
   };
 
   const handleSave = () => {
@@ -207,6 +415,11 @@ export function AIOfferteDialog({ open, onOpenChange, onCreate }: AIOfferteDialo
                 </DialogTitle>
                 <DialogDescription>
                   Upload foto's voor automatische analyse van afmetingen en materialen
+                  {clientSpeech.isSupported && (
+                    <span className="block mt-2 text-xs text-cyan-400">
+                      🎤 Tip: Gebruik de microfoon knoppen voor spraakinvoer
+                    </span>
+                  )}
                 </DialogDescription>
               </DialogHeader>
 
@@ -214,30 +427,84 @@ export function AIOfferteDialog({ open, onOpenChange, onCreate }: AIOfferteDialo
                 {/* Client Name */}
                 <div className="space-y-2">
                   <Label htmlFor="client">Klantnaam *</Label>
-                  <Input
-                    id="client"
-                    placeholder="Jan Janssen"
-                    className="bg-white/5 border-white/10 focus:border-cyan-500/50"
-                    value={clientName}
-                    onChange={(e) => setClientName(e.target.value)}
-                  />
+                  <div className="relative flex items-center gap-2">
+                    <Input
+                      id="client"
+                      placeholder="Jan Janssen"
+                      className="bg-white/5 border-white/10 focus:border-cyan-500/50 pr-12"
+                      value={clientName}
+                      onChange={(e) => setClientName(e.target.value)}
+                    />
+                    {clientSpeech.isSupported && (
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className={`absolute right-1 h-8 w-8 ${clientSpeech.isListening ? 'text-red-400 animate-pulse' : 'text-muted-foreground hover:text-cyan-400'}`}
+                        onClick={() => {
+                          if (clientSpeech.isListening) {
+                            clientSpeech.stopListening();
+                          } else {
+                            clientSpeech.startListening();
+                          }
+                        }}
+                        title={clientSpeech.isListening ? "Stop opnemen" : "Spraak invoer"}
+                      >
+                        {clientSpeech.isListening ? (
+                          <MicOff className="h-4 w-4" />
+                        ) : (
+                          <Mic className="h-4 w-4" />
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                  {clientSpeech.transcript && !clientSpeech.isListening && (
+                    <p className="text-xs text-muted-foreground">Gezegd: {clientSpeech.transcript}</p>
+                  )}
                 </div>
 
                 {/* Project Type */}
                 <div className="space-y-2">
                   <Label htmlFor="type">Type werkzaamheden *</Label>
-                  <Input
-                    id="type"
-                    placeholder="Bijv: Badkamer renovatie, Schilderwerk, Dakisolatie"
-                    className="bg-white/5 border-white/10 focus:border-cyan-500/50"
-                    value={projectType}
-                    onChange={(e) => setProjectType(e.target.value)}
-                  />
+                  <div className="relative flex items-center gap-2">
+                    <Input
+                      id="type"
+                      placeholder="Bijv: Badkamer renovatie, Schilderwerk, Dakisolatie"
+                      className="bg-white/5 border-white/10 focus:border-cyan-500/50 pr-12"
+                      value={projectType}
+                      onChange={(e) => setProjectType(e.target.value)}
+                    />
+                    {projectSpeech.isSupported && (
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        className={`absolute right-1 h-8 w-8 ${projectSpeech.isListening ? 'text-red-400 animate-pulse' : 'text-muted-foreground hover:text-cyan-400'}`}
+                        onClick={() => {
+                          if (projectSpeech.isListening) {
+                            projectSpeech.stopListening();
+                          } else {
+                            projectSpeech.startListening();
+                          }
+                        }}
+                        title={projectSpeech.isListening ? "Stop opnemen" : "Spraak invoer"}
+                      >
+                        {projectSpeech.isListening ? (
+                          <MicOff className="h-4 w-4" />
+                        ) : (
+                          <Mic className="h-4 w-4" />
+                        )}
+                      </Button>
+                    )}
+                  </div>
+                  {projectSpeech.transcript && !projectSpeech.isListening && (
+                    <p className="text-xs text-muted-foreground">Gezegd: {projectSpeech.transcript}</p>
+                  )}
                 </div>
 
                 {/* Image Upload */}
                 <div className="space-y-3">
-                  <Label>Foto's uploaden (max 5)</Label>
+                  <Label>Foto's uploaden (optioneel - max 5)</Label>
                   
                   {/* Upload Button */}
                   <div className="border-2 border-dashed border-white/10 rounded-xl p-8 hover:border-cyan-500/30 transition-colors">
@@ -249,6 +516,9 @@ export function AIOfferteDialog({ open, onOpenChange, onCreate }: AIOfferteDialo
                         <p className="text-sm font-medium text-white">Klik om foto's te uploaden</p>
                         <p className="text-xs text-muted-foreground mt-1">
                           Of sleep bestanden hierheen (PNG, JPG tot 5MB)
+                        </p>
+                        <p className="text-xs text-cyan-400 mt-2">
+                          {uploadedImages.length > 0 ? `${uploadedImages.length} foto${uploadedImages.length > 1 ? "'s" : ""} geselecteerd` : "Geen foto's geselecteerd"}
                         </p>
                       </div>
                       <input
@@ -293,15 +563,11 @@ export function AIOfferteDialog({ open, onOpenChange, onCreate }: AIOfferteDialo
                       toast.error("Vul alle verplichte velden in");
                       return;
                     }
-                    if (uploadedImages.length === 0) {
-                      toast.error("Upload minimaal 1 foto");
-                      return;
-                    }
                     setStep(2);
                   }}
-                  disabled={!clientName.trim() || !projectType.trim() || uploadedImages.length === 0}
+                  disabled={!clientName.trim() || !projectType.trim()}
                 >
-                  Volgende: AI Analyse
+                  {uploadedImages.length > 0 ? "Volgende: AI Analyse" : "Volgende: Handmatig invullen"}
                   <ChevronRight className="w-4 h-4 ml-2" />
                 </Button>
               </DialogFooter>
@@ -432,13 +698,45 @@ export function AIOfferteDialog({ open, onOpenChange, onCreate }: AIOfferteDialo
               <div className="py-6 space-y-6">
                 {/* AI Description */}
                 <div className="space-y-2">
-                  <Label>AI Gegenereerde Beschrijving</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>AI Gegenereerde Beschrijving</Label>
+                    {descriptionSpeech.isSupported && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        className={`text-xs ${descriptionSpeech.isListening ? 'text-red-400 animate-pulse' : 'text-cyan-400 hover:text-cyan-300'}`}
+                        onClick={() => {
+                          if (descriptionSpeech.isListening) {
+                            descriptionSpeech.stopListening();
+                          } else {
+                            descriptionSpeech.startListening();
+                          }
+                        }}
+                      >
+                        {descriptionSpeech.isListening ? (
+                          <>
+                            <MicOff className="w-3 h-3 mr-1" />
+                            Stop opnemen
+                          </>
+                        ) : (
+                          <>
+                            <Mic className="w-3 h-3 mr-1" />
+                            Spraak invoer
+                          </>
+                        )}
+                      </Button>
+                    )}
+                  </div>
                   <Textarea
                     value={aiDescription}
                     onChange={(e) => setAiDescription(e.target.value)}
                     className="min-h-[100px] bg-white/5 border-white/10 focus:border-cyan-500/50"
                     placeholder="AI zal een beschrijving genereren..."
                   />
+                  {descriptionSpeech.transcript && descriptionSpeech.isListening && (
+                    <p className="text-xs text-muted-foreground animate-pulse">Luisteren: {descriptionSpeech.transcript}</p>
+                  )}
                   <Button
                     size="sm"
                     variant="ghost"

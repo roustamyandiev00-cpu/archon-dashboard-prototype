@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   User,
@@ -15,7 +15,10 @@ import {
   Crown,
   ExternalLink,
   AlertCircle,
-  CheckCircle2
+  CheckCircle2,
+  Upload,
+  X,
+  Camera
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,12 +27,14 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { toast } from "sonner";
 import PageHeader from "@/components/PageHeader";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { getBillingPortalUrl, cancelSubscription } from "@/lib/billing";
 import { cn } from "@/lib/utils";
+import { apiClient } from "@/lib/api";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -44,27 +49,85 @@ import {
 
 export default function Instellingen() {
   const { user, logout } = useAuth();
-  const { profile, loading } = useUserProfile();
+  const { profile, loading, updateProfile } = useUserProfile();
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingPortal, setIsLoadingPortal] = useState(false);
   const [isCanceling, setIsCanceling] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form state
-  const [displayName, setDisplayName] = useState(user?.displayName || "");
+  const [displayName, setDisplayName] = useState(profile?.name || user?.displayName || "");
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [pushNotifications, setPushNotifications] = useState(false);
+
+  // Update displayName when profile loads
+  useEffect(() => {
+    if (profile?.name) {
+      setDisplayName(profile.name);
+    }
+  }, [profile?.name]);
 
   const handleSaveProfile = async () => {
     setIsSaving(true);
     try {
-      // Update profile logic here
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API call
+      await updateProfile({ name: displayName });
       toast.success("Instellingen opgeslagen!");
     } catch (error) {
       toast.error("Opslaan mislukt. Probeer het opnieuw.");
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error("Alleen afbeeldingen zijn toegestaan");
+      return;
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Afbeelding is te groot. Maximum grootte is 2MB");
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      const result = await apiClient.uploadAvatar(file);
+      await updateProfile({ avatar: result.url });
+      toast.success("Profielfoto succesvol geüpload!");
+    } catch (error) {
+      console.error("Avatar upload error:", error);
+      toast.error(error instanceof Error ? error.message : "Upload mislukt. Probeer het opnieuw.");
+    } finally {
+      setIsUploadingAvatar(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    try {
+      await updateProfile({ avatar: "" });
+      toast.success("Profielfoto verwijderd");
+    } catch (error) {
+      toast.error("Verwijderen mislukt. Probeer het opnieuw.");
+    }
+  };
+
+  const getAvatarUrl = () => {
+    return profile?.avatar || user?.photoURL || undefined;
+  };
+
+  const getAvatarFallback = () => {
+    const name = profile?.name || user?.displayName || user?.email || "U";
+    return name.charAt(0).toUpperCase();
   };
 
   const handleOpenBillingPortal = async () => {
@@ -148,6 +211,64 @@ export default function Instellingen() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
+            {/* Avatar Upload Section */}
+            <div className="flex items-center gap-6">
+              <div className="relative">
+                <Avatar className="w-24 h-24 border-2 border-white/20">
+                  <AvatarImage src={getAvatarUrl()} alt={profile?.name || user?.displayName || ""} />
+                  <AvatarFallback className="bg-cyan-500/20 text-cyan-400 text-2xl">
+                    {getAvatarFallback()}
+                  </AvatarFallback>
+                </Avatar>
+                {isUploadingAvatar && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full">
+                    <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 space-y-2">
+                <Label>Profielfoto</Label>
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isUploadingAvatar}
+                    className="border-white/10 hover:bg-white/5"
+                  >
+                    <Camera className="w-4 h-4 mr-2" />
+                    {isUploadingAvatar ? "Uploaden..." : "Foto wijzigen"}
+                  </Button>
+                  {getAvatarUrl() && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRemoveAvatar}
+                      disabled={isUploadingAvatar}
+                      className="border-red-500/20 hover:bg-red-500/10 text-red-400"
+                    >
+                      <X className="w-4 h-4 mr-2" />
+                      Verwijderen
+                    </Button>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  PNG, JPG of GIF. Maximaal 2MB.
+                </p>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleAvatarUpload}
+                  className="hidden"
+                />
+              </div>
+            </div>
+
+            <Separator className="bg-white/10" />
+
             <div className="grid gap-4">
               <div className="grid gap-2">
                 <Label htmlFor="displayName">Naam</Label>

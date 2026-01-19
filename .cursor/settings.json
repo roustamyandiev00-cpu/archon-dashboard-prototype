@@ -1,0 +1,84 @@
+{
+  "lmstudio": {
+    "baseUrl": "http://192.168.0.104:1234",
+    "models": {
+      "chat": {
+        "default": "llama3-8b-hikikomori-v0.3",
+        "options": [
+          {
+            "id": "llama3-8b-hikikomori-v0.3",
+            "name": "Llama 3 8B Hikikomori",
+            "description": "Voor algemene chat, ideeën en suggesties",
+            "temperature": 0.7,
+            "maxTokens": 4096,
+            "contextWindow": 8192
+          },
+          {
+            "id": "deepseek/deepseek-r1-0528-qwen3-8b",
+            "name": "DeepSeek R1 Qwen3 8B",
+            "description": "Voor programmeren, coderen en debugging",
+            "temperature": 0.3,
+            "maxTokens": 4096,
+            "contextWindow": 8192
+          }
+        ]
+      },
+      "embedding": {
+        "id": "text-embedding-nomic-embed-text-v1.5",
+        "name": "Nomic Embed Text v1.5",
+        "dimensions": 768
+      }
+    },
+    "endpoints": {
+      "chat": "/v1/chat/completions",
+      "embeddings": "/v1/embeddings",
+      "models": "/v1/models"
+    }
+  },
+  "cursor": {
+    "customModels": [
+      {
+        "provider": "lmstudio",
+        "model": "llama3-8b-hikikomori-v0.3",
+        "name": "Llama 3 Hikikomori (Chat/Ideeën)",
+        "useCases": ["chat", "ideas", "suggestions", "general"],
+        "baseUrl": "http://192.168.0.104:1234"
+      },
+      {
+        "provider": "lmstudio",
+        "model": "deepseek/deepseek-r1-0528-qwen3-8b",
+        "name": "DeepSeek R1 (Programmeren/Debug)",
+        "useCases": ["coding", "debugging", "programming", "refactoring"],
+        "baseUrl": "http://192.168.0.104:1234"
+      }
+    ],
+    "defaultModel": "deepseek/deepseek-r1-0528-qwen3-8b",
+    "embeddingModel": {
+      "provider": "lmstudio",
+      "model": "text-embedding-nomic-embed-text-v1.5",
+      "baseUrl": "http://192.168.0.104:1234"
+    }
+  },
+  "ai": {
+    "providers": {
+      "lmstudio": {
+        "enabled": true,
+        "baseUrl": "http://192.168.0.104:1234",
+        "apiKey": "lm-studio",
+        "timeout": 60000,
+        "retry": {
+          "maxAttempts": 3,
+          "delay": 1000
+        }
+      }
+    },
+    "modelRouting": {
+      "coding": "deepseek/deepseek-r1-0528-qwen3-8b",
+      "debugging": "deepseek/deepseek-r1-0528-qwen3-8b",
+      "chat": "llama3-8b-hikikomori-v0.3",
+      "ideas": "llama3-8b-hikikomori-v0.3",
+      "suggestions": "llama3-8b-hikikomori-v0.3",
+      "default": "deepseek/deepseek-r1-0528-qwen3-8b"
+    }
+  }
+}

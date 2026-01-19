@@ -1,11 +1,12 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Sparkles, Send, Loader2, TrendingUp, FileText, Users, Calendar } from "lucide-react";
+import { Sparkles, Send, Loader2, TrendingUp, FileText, Users, Calendar, Receipt, Plus } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Card } from "./ui/card";
 import { ScrollArea } from "./ui/scroll-area";
 import { cn } from "../lib/utils";
+import { useLocation } from "wouter";
 
 interface Message {
   id: string;
@@ -69,6 +70,7 @@ export function AIAssistantPanel({ externalInput, onClearExternalInput }: AIAssi
   const [isLoading, setIsLoading] = useState(false);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const [, navigate] = useLocation();
 
   // Handle external input (e.g. from Voice)
   useEffect(() => {
@@ -125,6 +127,19 @@ export function AIAssistantPanel({ externalInput, onClearExternalInput }: AIAssi
     setMessages(prev => [...prev, aiResponse]);
     setIsLoading(false);
     inputRef.current?.focus();
+
+    // Check if response mentions creating an offerte and suggest action
+    const lowerResponse = responseText.toLowerCase();
+    if (lowerResponse.includes("offerte") && (lowerResponse.includes("maken") || lowerResponse.includes("genereren") || lowerResponse.includes("opstellen"))) {
+      // Auto-scroll to show the response
+      setTimeout(() => {
+        scrollAreaRef.current?.scrollTo({ top: scrollAreaRef.current.scrollHeight, behavior: 'smooth' });
+      }, 100);
+    }
+  };
+
+  const handleCreateOfferte = () => {
+    navigate("/offertes?ai=1");
   };
 
   const handleSuggestionClick = (suggestion: string) => {
@@ -315,6 +330,20 @@ function MessageBubble({ message, index }: MessageBubbleProps) {
               i % 2 === 0 ? part : <strong key={i} className="font-semibold text-cyan-400">{part}</strong>
             )}
           </p>
+          
+          {/* Action button for offerte creation */}
+          {!isUser && message.content.toLowerCase().includes("offerte") && (
+            <div className="mt-3 pt-3 border-t border-border">
+              <Button
+                size="sm"
+                onClick={handleCreateOfferte}
+                className="w-full bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 text-white"
+              >
+                <Receipt className="w-3 h-3 mr-2" />
+                Open AI Offerte Wizard
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Timestamp */}

@@ -60,6 +60,8 @@ import PageHeader from "@/components/PageHeader";
 import { AIOfferteDialog } from "@/components/AIOfferteDialog";
 import { exportToCsv, openPrintableDocument } from "@/lib/file";
 import { useStoredState } from "@/hooks/useStoredState";
+import { useOffertes, type Offerte as FirestoreOfferte } from "@/lib/api-firestore";
+import { useProjecten } from "@/lib/api-firestore";
 
 // Project interface for automatic creation
 interface Project {
@@ -193,8 +195,40 @@ const toFormState = (offerte: Offerte | null, existing: Offerte[]): OfferteFormS
 };
 
 export default function Offertes() {
-  const [offertes, setOffertes] = useStoredState<Offerte[]>("offertes", defaultOffertes);
-  const [projects, setProjects] = useStoredState<Project[]>("projects", defaultProjects);
+  // Gebruik Firestore hooks voor real-time data
+  const { offertes: firestoreOffertes, loading: offertesLoading, createOfferte, updateOfferte, deleteOfferte } = useOffertes();
+  const { projecten: firestoreProjecten, createProject } = useProjecten();
+  
+  // Converteer Firestore offertes naar lokale Offerte interface
+  const offertes: Offerte[] = firestoreOffertes.map(o => ({
+    id: o.id || '',
+    nummer: o.nummer || '',
+    klant: o.klant || '',
+    bedrag: o.bedrag || 0,
+    datum: o.datum || '',
+    geldigTot: o.geldigTot || '',
+    status: o.status || 'concept',
+    beschrijving: o.beschrijving || '',
+    items: o.items || 0,
+    winProbability: o.winProbability || 0,
+    aiInsight: o.aiInsight
+  }));
+  
+  // Converteer Firestore projecten naar lokale Project interface
+  const projects: Project[] = firestoreProjecten.map(p => ({
+    id: p.id || '',
+    name: p.name || '',
+    client: p.client || p.clientName || '',
+    location: p.location || '',
+    budget: p.budget || 0,
+    spent: p.spent || 0,
+    status: p.status || 'Planning',
+    progress: p.progress || 0,
+    deadline: p.deadline || '',
+    image: p.image || '',
+    paymentMilestones: p.paymentMilestones || [],
+    team: p.team || []
+  }));
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [isAISortingEnabled, setIsAISortingEnabled] = useState(false);
@@ -237,7 +271,7 @@ export default function Offertes() {
   };
 
   // Function to automatically create project from accepted quote
-  const createProjectFromQuote = (offerte: Offerte) => {
+  const createProjectFromQuote = async (offerte: Offerte) => {
     // Calculate payment milestones (voorschot, 1e factuur, 2e factuur, optional 3e factuur)
     const voorschotPercentage = 30; // 30% voorschot
     const remainingAmount = offerte.bedrag * (1 - voorschotPercentage / 100);
@@ -360,26 +394,47 @@ export default function Offertes() {
       team: []
     };
 
-    // Save projects using useStoredState
-    setProjects((prev) => [newProject, ...prev]);
+    // Save project to Firestore
+    try {
+      await createProject({
+        name: newProject.name,
+        client: newProject.client,
+        location: newProject.location,
+        budget: newProject.budget,
+        spent: newProject.spent,
+        status: newProject.status,
+        progress: newProject.progress,
+        deadline: newProject.deadline,
+        image: newProject.image,
+        paymentMilestones: newProject.paymentMilestones,
+        team: newProject.team
+      });
 
-    toast.success("Project automatisch aangemaakt!", {
-      description: `"${newProject.name}" is aangemaakt met ${milestones.length} betalingsmijlpalen.`,
-      icon: <Sparkles className="w-4 h-4 text-cyan-400" />,
-      duration: 5000
-    });
+      toast.success("Project automatisch aangemaakt!", {
+        description: `"${newProject.name}" is aangemaakt met ${milestones.length} betalingsmijlpalen.`,
+        icon: <Sparkles className="w-4 h-4 text-cyan-400" />,
+        duration: 5000
+      });
+    } catch (error) {
+      console.error('Error creating project:', error);
+      toast.error("Fout bij aanmaken project", { description: "Kon project niet aanmaken." });
+    }
   };
 
   // Handle quote acceptance
-  const acceptQuote = (offerte: Offerte) => {
-    const updated: Offerte = {
-      ...offerte,
-      status: "geaccepteerd",
-      winProbability: 100,
-      aiInsight: "Project automatisch aangemaakt",
-    };
-    setOffertes((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
-    createProjectFromQuote(updated);
+  const acceptQuote = async (offerte: Offerte) => {
+    if (!offerte.id) return;
+    try {
+      await updateOfferte(offerte.id, {
+        status: "geaccepteerd",
+        winProbability: 100,
+        aiInsight: "Project automatisch aangemaakt",
+      });
+      await createProjectFromQuote({ ...offerte, status: "geaccepteerd" });
+    } catch (error) {
+      console.error('Error accepting quote:', error);
+      toast.error("Fout bij accepteren", { description: "Kon offerte niet accepteren." });
+    }
   };
 
   const filteredOffertes = [...offertes].filter((offerte) => {
@@ -427,7 +482,7 @@ export default function Offertes() {
     setDetailOpen(true);
   };
 
-  const handleFormSubmit = () => {
+  const handleFormSubmit = async () => {
     if (!formState.klant.trim()) {
       toast.error("Klantnaam ontbreekt", { description: "Vul een klantnaam in." });
       return;
@@ -452,9 +507,8 @@ export default function Offertes() {
       return;
     }
 
-    const payload: Offerte = {
-      id: formState.id ?? nanoid(8),
-      nummer: formState.nummer.trim(),
+    // Converteer naar Firestore formaat
+    const firestorePayload: Omit<FirestoreOfferte, 'id' | 'nummer' | 'createdAt' | 'updatedAt'> = {
       klant: formState.klant.trim(),
       bedrag,
       datum: formState.datum,
@@ -466,15 +520,20 @@ export default function Offertes() {
       aiInsight: formState.status === "verzonden" ? "Kans op succes bijgewerkt" : undefined,
     };
 
-    if (activeOfferte) {
-      setOffertes((prev) => prev.map((item) => (item.id === payload.id ? payload : item)));
-      toast.success("Offerte bijgewerkt", { description: `${payload.nummer} is aangepast.` });
-    } else {
-      setOffertes((prev) => [payload, ...prev]);
-      toast.success("Offerte toegevoegd", { description: `${payload.nummer} is aangemaakt.` });
+    try {
+      if (activeOfferte && activeOfferte.id) {
+        await updateOfferte(activeOfferte.id, firestorePayload);
+        toast.success("Offerte bijgewerkt", { description: `${formState.nummer} is aangepast.` });
+      } else {
+        await createOfferte(firestorePayload);
+        toast.success("Offerte toegevoegd", { description: `Offerte is aangemaakt.` });
+      }
+      setFormOpen(false);
+      setActiveOfferte(null);
+    } catch (error) {
+      console.error('Error saving offerte:', error);
+      toast.error("Fout bij opslaan", { description: "Kon offerte niet opslaan." });
     }
-    setFormOpen(false);
-    setActiveOfferte(payload);
   };
 
   const handleExport = () => {
@@ -495,21 +554,31 @@ export default function Offertes() {
     toast.success("Export gestart", { description: "Je offertesbestand is gedownload." });
   };
 
-  const handleSendQuote = (offerte: Offerte) => {
-    const updated: Offerte = {
-      ...offerte,
-      status: "concept",
-      geldigTot: addDays(formatDate(new Date()), 30),
-      winProbability: Math.max(offerte.winProbability, 70),
-      aiInsight: "Offerte verzonden, opvolging gepland",
-    };
-    setOffertes((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
-    toast.success("Offerte verzonden", { description: `${updated.nummer} is naar de klant gestuurd.` });
+  const handleSendQuote = async (offerte: Offerte) => {
+    if (!offerte.id) return;
+    try {
+      await updateOfferte(offerte.id, {
+        status: "verzonden",
+        geldigTot: addDays(formatDate(new Date()), 30),
+        winProbability: Math.max(offerte.winProbability, 70),
+        aiInsight: "Offerte verzonden, opvolging gepland",
+      });
+      toast.success("Offerte verzonden", { description: `${offerte.nummer} is naar de klant gestuurd.` });
+    } catch (error) {
+      console.error('Error sending quote:', error);
+      toast.error("Fout bij verzenden", { description: "Kon offerte niet verzenden." });
+    }
   };
 
-  const handleDelete = (offerte: Offerte) => {
-    setOffertes((prev) => prev.filter((item) => item.id !== offerte.id));
-    toast.success("Offerte verwijderd", { description: `${offerte.nummer} is verwijderd.` });
+  const handleDelete = async (offerte: Offerte) => {
+    if (!offerte.id) return;
+    try {
+      await deleteOfferte(offerte.id);
+      toast.success("Offerte verwijderd", { description: `${offerte.nummer} is verwijderd.` });
+    } catch (error) {
+      console.error('Error deleting offerte:', error);
+      toast.error("Fout bij verwijderen", { description: "Kon offerte niet verwijderen." });
+    }
   };
 
   const handleDownload = (offerte: Offerte) => {
@@ -544,23 +613,43 @@ export default function Offertes() {
     );
   };
 
-  const handleAICreate = (data: { client: string; description: string; total: number; items: any[] }) => {
+  const handleAICreate = async (data: { 
+    client: string; 
+    description: string; 
+    total: number; 
+    items: any[];
+    dimensions?: { width: number; height: number; area: number };
+  }) => {
     const today = formatDate(new Date());
-    const payload: Offerte = {
-      id: nanoid(8),
-      nummer: nextOfferteNummer(offertes),
-      klant: data.client,
-      bedrag: data.total,
-      datum: today,
-      geldigTot: addDays(today, 30),
-      status: "verzonden",
-      beschrijving: data.description,
-      items: data.items.length || 1,
-      winProbability: 80,
-      aiInsight: "Offerte concept aangemaakt",
-    };
-    setOffertes((prev) => [payload, ...prev]);
-    toast.success("AI offerte opgeslagen", { description: `${payload.nummer} is aangemaakt.` });
+    try {
+      // Build description with dimensions if available
+      let beschrijving = data.description;
+      if (data.dimensions) {
+        beschrijving += `\n\nAfmetingen: ${data.dimensions.width}m × ${data.dimensions.height}m (${data.dimensions.area}m²)`;
+      }
+
+      await createOfferte({
+        klant: data.client,
+        bedrag: data.total,
+        datum: today,
+        geldigTot: addDays(today, 30),
+        status: "verzonden",
+        beschrijving: beschrijving,
+        items: data.items.length || 1,
+        winProbability: 80,
+        aiInsight: data.dimensions 
+          ? `Offerte aangemaakt met AI analyse (${data.dimensions.area}m²)`
+          : "Offerte concept aangemaakt",
+      });
+      toast.success("AI offerte opgeslagen", { 
+        description: data.dimensions 
+          ? `Offerte is aangemaakt met afmetingen (${data.dimensions.area}m²)` 
+          : `Offerte is aangemaakt.` 
+      });
+    } catch (error) {
+      console.error('Error creating AI offerte:', error);
+      toast.error("Fout bij aanmaken", { description: "Kon offerte niet aanmaken." });
+    }
   };
 
   return (

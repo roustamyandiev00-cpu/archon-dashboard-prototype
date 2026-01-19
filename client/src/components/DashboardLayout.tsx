@@ -278,8 +278,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             {unreadCount > 0 && <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full" />}
           </Button>
           <Avatar className="w-8 h-8">
-            <AvatarImage src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=32&h=32&fit=crop&crop=face" />
-            <AvatarFallback>JD</AvatarFallback>
+            <AvatarImage src={profile?.avatar || user?.photoURL || undefined} alt={displayName} />
+            <AvatarFallback>{avatarFallback}</AvatarFallback>
           </Avatar>
         </div>
       </header>
@@ -642,7 +642,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center gap-3 px-2">
                   <Avatar className="w-8 h-8">
-                    <AvatarImage src={user?.photoURL ?? undefined} alt={displayName} />
+                    <AvatarImage src={profile?.avatar || user?.photoURL || undefined} alt={displayName} />
                     <AvatarFallback>{avatarFallback}</AvatarFallback>
                   </Avatar>
                   <div className="text-left hidden xl:block">

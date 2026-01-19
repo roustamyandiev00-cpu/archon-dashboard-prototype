@@ -56,7 +56,9 @@ export default function Login() {
 
     try {
       const credential = await signInWithEmailAndPassword(auth, formData.email, formData.password);
-      await ensureUserProfile(credential.user);
+      await ensureUserProfile(credential.user, {
+        registrationMethod: "email"
+      });
       toast.success("Succesvol ingelogd!");
 
       // Smart redirect: If the next path is a public auth/marketing page, go to dashboard instead
@@ -98,7 +100,10 @@ export default function Login() {
       }
 
       const result = await signInWithPopup(auth, authProvider);
-      await ensureUserProfile(result.user);
+      const registrationMethod = provider.toLowerCase() as "google" | "github" | "apple";
+      await ensureUserProfile(result.user, {
+        registrationMethod
+      });
       toast.success(`Succesvol ingelogd met ${provider}!`);
       setLocation(nextPath);
     } catch (error: unknown) {

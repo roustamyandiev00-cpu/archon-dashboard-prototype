@@ -14,7 +14,7 @@
 
 ### AI Assistant
 - ✅ **Chat endpoint**: `/api/assistant` volledig werkend
-- ✅ **OpenAI integratie**: Configureerbaar via env vars
+- ✅ **Gemini integratie**: Configureerbaar via GEMINI_API_KEY env var
 
 ### Basis Infrastructure
 - ✅ **Error logging**: `/api/errors` endpoint
@@ -25,15 +25,16 @@
 ## ❌ ONTBREKENDE INTEGRATIES
 
 ### 1. CRUD API's (KRITIEK)
-**Status**: Niet geïmplementeerd
-**Impact**: Data wordt alleen lokaal opgeslagen (localStorage)
+**Status**: ✅ Geïmplementeerd
+**Impact**: Data wordt opgeslagen in Firestore
 
-**Ontbreekt**:
-- `POST /api/klanten` - Klanten aanmaken
-- `PUT /api/klanten/:id` - Klanten wijzigen  
-- `GET /api/klanten` - Klanten ophalen
-- `DELETE /api/klanten/:id` - Klanten verwijderen
-- Hetzelfde voor: Projecten, Facturen, Offertes, Transacties
+**Geïmplementeerd**:
+- ✅ `GET /api/klanten` - Klanten ophalen
+- ✅ `POST /api/klanten` - Klanten aanmaken
+- ✅ `PUT /api/klanten/[id]` - Klanten wijzigen  
+- ✅ `DELETE /api/klanten/[id]` - Klanten verwijderen
+- ✅ Hetzelfde voor: Projecten, Facturen, Offertes
+- ⚠️ Transacties nog via Firestore hooks (geen REST API nodig)
 
 ### 2. Real-time Sync (BELANGRIJK)
 **Status**: Alleen user profiles hebben real-time sync
@@ -45,14 +46,15 @@
 - Real-time notificaties voor nieuwe transacties
 
 ### 3. Email Delivery (BELANGRIJK)
-**Status**: Niet geïmplementeerd
-**Impact**: Geen automatische factuurverzending
+**Status**: ✅ Geïmplementeerd
+**Impact**: Automatische factuurverzending mogelijk
 
-**Ontbreekt**:
-- SendGrid/Resend integratie
-- Email templates (facturen, welkomstmail)
-- `POST /api/email/send-invoice` endpoint
-- `POST /api/email/send-welcome` endpoint
+**Geïmplementeerd**:
+- ✅ SendGrid/Resend integratie
+- ✅ `POST /api/email/send` endpoint
+- ⚠️ Email templates nog handmatig te maken
+- ⚠️ `POST /api/email/send-invoice` endpoint (kan via /api/email/send)
+- ⚠️ `POST /api/email/send-welcome` endpoint (kan via /api/email/send)
 
 ### 4. Bankkoppeling (NICE TO HAVE)
 **Status**: Niet geïmplementeerd  
@@ -66,14 +68,16 @@
 - Automatische transactie import
 
 ### 5. File Storage (BELANGRIJK)
-**Status**: Niet geïmplementeerd
-**Impact**: Geen bijlagen mogelijk
+**Status**: ✅ Geïmplementeerd
+**Impact**: Bijlagen en documenten mogelijk
 
-**Ontbreekt**:
-- Firebase Storage of AWS S3 setup
-- `POST /api/files/upload` endpoint
-- PDF generatie voor facturen
-- Document management systeem
+**Geïmplementeerd**:
+- ✅ Firebase Storage integratie
+- ✅ `POST /api/files/upload` endpoint
+- ✅ `GET /api/files/[id]` endpoint
+- ✅ `DELETE /api/files/[id]` endpoint
+- ⚠️ PDF generatie voor facturen (nog te implementeren)
+- ⚠️ Document management systeem (basis aanwezig)
 
 ### 6. Push Notificaties (NICE TO HAVE)
 **Status**: Niet geïmplementeerd
@@ -147,12 +151,13 @@
 
 - **Frontend**: 95% compleet
 - **Authentication**: 100% compleet  
-- **Payment Flow**: 30% compleet (demo only)
-- **Data Persistence**: 20% compleet (localStorage only)
-- **Email/Notifications**: 0% compleet
-- **File Management**: 0% compleet
+- **Payment Flow**: 60% compleet (Stripe checkout + webhook werkend)
+- **Data Persistence**: 85% compleet (Firestore + REST API)
+- **Email/Notifications**: 70% compleet (API klaar, templates nodig)
+- **File Management**: 70% compleet (Upload/Download werkend, PDF gen nog nodig)
 - **Banking Integration**: 0% compleet
+- **CRUD API's**: 90% compleet (Klanten, Facturen, Projecten, Offertes)
 
-**Overall Backend Completeness: ~25%**
+**Overall Backend Completeness: ~70%**
 
-Voor een volledig productie-klare applicatie is nog ~75% backend werk nodig.
+Voor een volledig productie-klare applicatie is nog ~30% backend werk nodig (voornamelijk PDF generatie, email templates, en banking integratie).

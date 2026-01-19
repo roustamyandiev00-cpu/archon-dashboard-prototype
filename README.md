@@ -2,6 +2,12 @@
 
 Een modern dashboard voor bouwbedrijven met AI-assistentie, klantenbeheer, facturatie en meer.
 
+## 📸 Dashboard Voorbeeld
+
+![Dashboard Screenshot](/client/public/images/dashboard-screenshot.png)
+
+*Dashboard overzicht met omzet, leads, projecten en AI-assistentie*
+
 ## 🚀 Quick Start
 
 ```bash
@@ -34,8 +40,10 @@ http://localhost:3000
 │   │   ├── components/ # Herbruikbare componenten
 │   │   ├── lib/        # Utilities & API
 │   │   └── contexts/   # React contexts
-├── server/          # Backend (Express)
-├── functions/       # Firebase Functions
+├── api/            # Backend API (Vercel Serverless Functions)
+│   ├── billing/    # Stripe billing endpoints
+│   └── lib/        # Shared backend utilities
+├── shared/         # Shared types & schemas
 └── docs/           # Documentatie
 ```
 

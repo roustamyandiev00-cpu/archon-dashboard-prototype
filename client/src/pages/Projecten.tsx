@@ -26,6 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../components/ui/select";
+import { useProjecten } from "@/lib/api-firestore";
 import { useStoredState } from "@/hooks/useStoredState";
 
 interface PaymentMilestone {
@@ -112,7 +113,25 @@ const generateAIInsight = (milestone: PaymentMilestone, index: number, totalMile
 };
 
 export default function Projecten() {
-  const [projects, setProjects] = useStoredState<Project[]>("projects", defaultProjects);
+  // Gebruik Firestore hook voor real-time data
+  const { projecten: firestoreProjecten, loading, createProject, updateProject, deleteProject } = useProjecten();
+  
+  // Converteer Firestore projecten naar lokale Project interface
+  const projects: Project[] = firestoreProjecten.map(p => ({
+    id: p.id || '',
+    name: p.name || '',
+    client: p.client || p.clientName || '',
+    location: p.location || '',
+    budget: p.budget || 0,
+    spent: p.spent || 0,
+    status: p.status || 'Planning',
+    progress: p.progress || 0,
+    deadline: p.deadline || '',
+    image: p.image || '',
+    paymentMilestones: p.paymentMilestones || [],
+    team: p.team || [],
+    archived: p.archived || false
+  }));
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [formOpen, setFormOpen] = useState(false);
@@ -129,38 +148,38 @@ export default function Projecten() {
     image: "",
   });
 
-  const handleMilestoneStatusChange = (projectId: string, milestoneId: string, newStatus: "open" | "verzonden" | "betaald") => {
-    const updatedProjects = projects.map(project => {
-      if (project.id === projectId) {
-        const updatedMilestones = project.paymentMilestones.map(milestone => {
-          if (milestone.id === milestoneId) {
-            return { ...milestone, status: newStatus };
-          }
-          return milestone;
-        });
+  const handleMilestoneStatusChange = async (projectId: string, milestoneId: string, newStatus: "open" | "verzonden" | "betaald") => {
+    const project = projects.find(p => p.id === projectId);
+    if (!project || !project.id) return;
 
-        // Update project progress based on payment status
-        const paidMilestones = updatedMilestones.filter(m => m.status === "betaald").length;
-        const totalMilestones = updatedMilestones.length;
-        const paymentProgress = (paidMilestones / totalMilestones) * 100;
-
-        return { ...project, paymentMilestones: updatedMilestones, progress: paymentProgress };
+    const updatedMilestones = (project.paymentMilestones || []).map(milestone => {
+      if (milestone.id === milestoneId) {
+        return { ...milestone, status: newStatus };
       }
-      return project;
+      return milestone;
     });
 
-    setProjects(updatedProjects);
+    // Update project progress based on payment status
+    const paidMilestones = updatedMilestones.filter(m => m.status === "betaald").length;
+    const totalMilestones = updatedMilestones.length;
+    const paymentProgress = totalMilestones > 0 ? (paidMilestones / totalMilestones) * 100 : 0;
 
-    const statusMessages = {
-      open: "Factuurstatus ingesteld op open",
-      verzonden: "Factuur verzonden!",
-      betaald: "Betaling ontvangen!"
-    };
+    try {
+      await updateProject(project.id, {
+        paymentMilestones: updatedMilestones,
+        progress: paymentProgress
+      });
 
-    toast.success("Status bijgewerkt", {
-      description: statusMessages[newStatus],
-      icon: <CheckCircle2 className="w-4 h-4 text-cyan-400" />
-    });
+      const statusMessages: Record<"open" | "verzonden" | "betaald", string> = {
+        open: "Factuurstatus ingesteld op open",
+        verzonden: "Factuur verzonden!",
+        betaald: "Betaling ontvangen!"
+      };
+      toast.success(statusMessages[newStatus]);
+    } catch (error) {
+      console.error('Error updating milestone:', error);
+      toast.error("Fout bij bijwerken", { description: "Kon milestone status niet bijwerken." });
+    }
   };
 
   const openCreateDialog = () => {
@@ -198,14 +217,40 @@ export default function Projecten() {
     setDetailOpen(true);
   };
 
-  const handleArchive = (project: Project) => {
-    setProjects((prev) =>
-      prev.map((item) => (item.id === project.id ? { ...item, archived: true } : item))
-    );
-    toast.success("Project gearchiveerd", { description: `${project.name} is gearchiveerd.` });
+  const handleArchive = async (project: Project) => {
+    if (!project.id) return;
+    try {
+      await updateProject(project.id, { archived: true });
+      toast.success("Project gearchiveerd", { description: `${project.name} is gearchiveerd.` });
+    } catch (error) {
+      console.error('Error archiving project:', error);
+      toast.error("Fout bij archiveren", { description: "Kon project niet archiveren." });
+    }
   };
 
-  const handleFormSubmit = () => {
+  const handleUnarchive = async (project: Project) => {
+    if (!project.id) return;
+    try {
+      await updateProject(project.id, { archived: false });
+      toast.success("Project hersteld", { description: `${project.name} is hersteld.` });
+    } catch (error) {
+      console.error('Error unarchiving project:', error);
+      toast.error("Fout bij herstellen", { description: "Kon project niet herstellen." });
+    }
+  };
+
+  const handleDelete = async (project: Project) => {
+    if (!project.id) return;
+    try {
+      await deleteProject(project.id);
+      toast.success("Project verwijderd", { description: `${project.name} is verwijderd.` });
+    } catch (error) {
+      console.error('Error deleting project:', error);
+      toast.error("Fout bij verwijderen", { description: "Kon project niet verwijderen." });
+    }
+  };
+
+  const handleFormSubmit = async () => {
     if (!formState.name.trim()) {
       toast.error("Projectnaam ontbreekt", { description: "Vul een projectnaam in." });
       return;
@@ -233,8 +278,8 @@ export default function Projecten() {
       },
     ];
 
-    const payload: Project = {
-      id: formState.id || `PRJ-${nanoid(6)}`,
+    // Converteer naar Firestore formaat
+    const firestorePayload: Omit<Project, 'id' | 'createdAt' | 'updatedAt'> = {
       name: formState.name.trim(),
       client: formState.client.trim(),
       location: formState.location.trim() || "Locatie n.t.b.",
@@ -249,15 +294,20 @@ export default function Projecten() {
       archived: activeProject?.archived ?? false,
     };
 
-    if (activeProject) {
-      setProjects((prev) => prev.map((item) => (item.id === payload.id ? payload : item)));
-      toast.success("Project bijgewerkt", { description: `${payload.name} is aangepast.` });
-    } else {
-      setProjects((prev) => [payload, ...prev]);
-      toast.success("Project toegevoegd", { description: `${payload.name} is aangemaakt.` });
+    try {
+      if (activeProject && activeProject.id) {
+        await updateProject(activeProject.id, firestorePayload);
+        toast.success("Project bijgewerkt", { description: `${formState.name} is aangepast.` });
+      } else {
+        await createProject(firestorePayload);
+        toast.success("Project toegevoegd", { description: `${formState.name} is aangemaakt.` });
+      }
+      setFormOpen(false);
+      setActiveProject(null);
+    } catch (error) {
+      console.error('Error saving project:', error);
+      toast.error("Fout bij opslaan", { description: "Kon project niet opslaan." });
     }
-    setFormOpen(false);
-    setActiveProject(payload);
   };
 
   const filteredProjects = projects.filter(project => {
@@ -373,13 +423,18 @@ export default function Projecten() {
                       <DropdownMenuItem onClick={() => openEditDialog(project)}>Bewerken</DropdownMenuItem>
                       <DropdownMenuItem onClick={() => openEditDialog(project)}>Status wijzigen</DropdownMenuItem>
                       {project.archived ? (
-                        <DropdownMenuItem onClick={() => setProjects((prev) => prev.map((item) => item.id === project.id ? { ...item, archived: false } : item))}>
+                        <DropdownMenuItem onClick={() => handleUnarchive(project)}>
                           Herstellen
                         </DropdownMenuItem>
                       ) : (
-                        <DropdownMenuItem className="text-red-400" onClick={() => handleArchive(project)}>
-                          Archiveren
-                        </DropdownMenuItem>
+                        <>
+                          <DropdownMenuItem className="text-red-400" onClick={() => handleArchive(project)}>
+                            Archiveren
+                          </DropdownMenuItem>
+                          <DropdownMenuItem className="text-red-400" onClick={() => handleDelete(project)}>
+                            Verwijderen
+                          </DropdownMenuItem>
+                        </>
                       )}
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -677,7 +732,7 @@ export default function Projecten() {
                 </Button>
                 <Button
                   className="bg-[#06B6D4] hover:bg-[#0891b2] text-white"
-                  onClick={() => activeProject && (activeProject.archived ? setProjects((prev) => prev.map((item) => item.id === activeProject.id ? { ...item, archived: false } : item)) : handleArchive(activeProject))}
+                  onClick={() => activeProject && (activeProject.archived ? handleUnarchive(activeProject) : handleArchive(activeProject))}
                 >
                   {activeProject.archived ? "Herstellen" : "Archiveren"}
                 </Button>

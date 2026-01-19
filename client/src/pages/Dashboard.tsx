@@ -34,6 +34,7 @@ import { NotificationCenter } from "@/components/NotificationCenter";
 import { AIAssistantPanel } from "@/components/AIAssistantPanel";
 import { useStoredState } from "@/hooks/useStoredState";
 import { useAuth } from "@/contexts/AuthContext";
+import { useDashboardData } from "@/hooks/useDashboardData";
 import {
   CashflowChart,
   ProjectStatusChart,
@@ -244,11 +245,8 @@ export default function Dashboard() {
   const [, navigate] = useLocation();
   const { user } = useAuth();
 
-  const [facturen] = useStoredState<DashboardFactuur[]>("facturen", []);
-  const [transacties] = useStoredState<DashboardTransactie[]>("transacties", []);
-  const [klanten] = useStoredState<DashboardKlant[]>("klanten", []);
-  const [projects] = useStoredState<DashboardProject[]>("projects", []);
-  const [appointments] = useStoredState<DashboardAppointment[]>("appointments", []);
+  // Gebruik de nieuwe dashboard data hook die Firestore data converteert
+  const { facturen, transacties, klanten, projects, appointments } = useDashboardData();
 
   const handleStartAI = () => {
     setShowAIPanel(true);

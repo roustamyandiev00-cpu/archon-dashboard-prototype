@@ -55,7 +55,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import PageHeader from "@/components/PageHeader";
 import { exportToCsv, openPrintableDocument } from "@/lib/file";
-import { useStoredState } from "@/hooks/useStoredState";
+import { useFacturen, useKlanten, type Factuur as FirestoreFactuur } from "@/lib/api-firestore";
 
 interface Factuur {
   id: string;
@@ -149,7 +149,24 @@ const toFormState = (factuur: Factuur | null, existing: Factuur[]): FactuurFormS
 };
 
 export default function Facturen() {
-  const [facturen, setFacturen] = useStoredState<Factuur[]>("facturen", defaultFacturen);
+  // Gebruik Firestore hooks voor real-time data
+  const { facturen: firestoreFacturen, loading, createFactuur, updateFactuur, deleteFactuur } = useFacturen();
+  const { klanten } = useKlanten();
+  
+  // Converteer Firestore facturen naar lokale Factuur interface
+  const facturen: Factuur[] = firestoreFacturen.map(f => ({
+    id: f.id || '',
+    nummer: f.factuurNummer || '',
+    klant: f.klantNaam || '',
+    bedrag: f.totaal || 0,
+    datum: f.datum || '',
+    vervaldatum: f.vervaldatum || '',
+    status: f.status === 'betaald' ? 'betaald' : 
+            f.status === 'verzonden' ? 'openstaand' : 
+            f.status === 'vervallen' ? 'overtijd' : 'concept',
+    items: f.regels?.length || 0
+  }));
+
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
   const [formOpen, setFormOpen] = useState(false);
@@ -204,7 +221,7 @@ export default function Facturen() {
     setDetailOpen(true);
   };
 
-  const handleFormSubmit = () => {
+  const handleFormSubmit = async () => {
     if (!formState.klant.trim()) {
       toast.error("Klantnaam ontbreekt", { description: "Vul een klantnaam in." });
       return;
@@ -220,26 +237,44 @@ export default function Facturen() {
       return;
     }
 
-    const payload: Factuur = {
-      id: formState.id ?? nanoid(8),
-      nummer: formState.nummer.trim(),
-      klant: formState.klant.trim(),
-      bedrag,
+    // Zoek klantId op basis van klantNaam
+    const matchingKlant = klanten.find(k => k.naam === formState.klant.trim());
+    const klantId = matchingKlant?.id || '';
+    
+    // Converteer naar Firestore formaat
+    const firestorePayload: Omit<FirestoreFactuur, 'id' | 'factuurNummer' | 'createdAt' | 'updatedAt'> = {
+      klantId: klantId || formState.klant.trim(), // Fallback naar naam als ID niet gevonden
+      klantNaam: formState.klant.trim(),
       datum: formState.datum,
       vervaldatum: formState.vervaldatum,
-      status: formState.status,
-      items,
+      regels: Array(items).fill(null).map((_, i) => ({
+        beschrijving: `Item ${i + 1}`,
+        aantal: 1,
+        prijs: bedrag / items,
+        btw: 21
+      })),
+      subtotaal: bedrag / 1.21,
+      btwBedrag: bedrag - (bedrag / 1.21),
+      totaal: bedrag,
+      status: formState.status === 'betaald' ? 'betaald' :
+              formState.status === 'openstaand' ? 'verzonden' :
+              formState.status === 'overtijd' ? 'vervallen' : 'concept',
     };
 
-    if (activeFactuur) {
-      setFacturen((prev) => prev.map((factuur) => (factuur.id === payload.id ? payload : factuur)));
-      toast.success("Factuur bijgewerkt", { description: `${payload.nummer} is aangepast.` });
-    } else {
-      setFacturen((prev) => [payload, ...prev]);
-      toast.success("Factuur toegevoegd", { description: `${payload.nummer} is aangemaakt.` });
+    try {
+      if (activeFactuur && activeFactuur.id) {
+        await updateFactuur(activeFactuur.id, firestorePayload);
+        toast.success("Factuur bijgewerkt", { description: `${formState.nummer} is aangepast.` });
+      } else {
+        await createFactuur(firestorePayload);
+        toast.success("Factuur toegevoegd", { description: `Factuur is aangemaakt.` });
+      }
+      setFormOpen(false);
+      setActiveFactuur(null);
+    } catch (error) {
+      console.error('Error saving factuur:', error);
+      toast.error("Fout bij opslaan", { description: "Kon factuur niet opslaan." });
     }
-    setFormOpen(false);
-    setActiveFactuur(payload);
   };
 
   const handleExport = () => {
@@ -258,18 +293,35 @@ export default function Facturen() {
     toast.success("Export gestart", { description: "Je facturenbestand is gedownload." });
   };
 
-  const handleReminder = (factuur: Factuur) => {
+  const handleReminder = async (factuur: Factuur) => {
+    if (!factuur.id) return;
     const newDueDate = addDays(factuur.vervaldatum, 7);
-    setFacturen((prev) =>
-      prev.map((item) =>
-        item.id === factuur.id
-          ? { ...item, vervaldatum: newDueDate, status: item.status === "concept" ? "openstaand" : item.status }
-          : item
-      )
-    );
-    toast.success("Herinnering verzonden", {
-      description: `Nieuwe vervaldatum: ${new Date(newDueDate).toLocaleDateString("nl-NL")}`,
-    });
+    const newStatus = factuur.status === "concept" ? "openstaand" : factuur.status;
+    try {
+      await updateFactuur(factuur.id, {
+        vervaldatum: newDueDate,
+        status: newStatus === 'betaald' ? 'betaald' : 
+                newStatus === 'openstaand' ? 'verzonden' :
+                newStatus === 'overtijd' ? 'vervallen' : 'concept',
+      });
+      toast.success("Herinnering verzonden", {
+        description: `Nieuwe vervaldatum: ${new Date(newDueDate).toLocaleDateString("nl-NL")}`,
+      });
+    } catch (error) {
+      console.error('Error updating factuur:', error);
+      toast.error("Fout bij bijwerken", { description: "Kon factuur niet bijwerken." });
+    }
+  };
+
+  const handleDelete = async (factuur: Factuur) => {
+    if (!factuur.id) return;
+    try {
+      await deleteFactuur(factuur.id);
+      toast.success("Factuur verwijderd", { description: `${factuur.nummer} is verwijderd.` });
+    } catch (error) {
+      console.error('Error deleting factuur:', error);
+      toast.error("Fout bij verwijderen", { description: "Kon factuur niet verwijderen." });
+    }
   };
 
   const handleDownload = (factuur: Factuur) => {

@@ -56,6 +56,14 @@ service firebase.storage {
                       isValidFileSize(10);
     }
     
+    // Offerte photos
+    match /offertes/{userId}/{offerteId}/{allPaths=**} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) && 
+                      isValidImageType() && 
+                      isValidFileSize(5);
+    }
+    
     // Default: deny all other access
     match /{allPaths=**} {
       allow read, write: if false;

@@ -3,8 +3,8 @@ import type { VercelRequest, VercelResponse } from '@vercel/node';
 function createAssistantReply(input: string): string {
   const lower = input.toLowerCase();
 
-  if (lower.includes("offerte")) {
-    return "Graag. Welke klant, welke werkzaamheden en welke richtprijs wil je opnemen in de offerte?";
+  if (lower.includes("offerte") || lower.includes("maak offerte") || lower.includes("nieuwe offerte")) {
+    return "Ik kan je helpen een offerte te maken! Ik heb de volgende informatie nodig:\n\n1. **Klantnaam** - Voor wie is de offerte?\n2. **Type werkzaamheden** - Wat moet er gebeuren? (bijv. badkamer renovatie, schilderwerk)\n3. **Optioneel**: Beschrijving, afmetingen, of foto's\n\nJe kunt ook de 'AI Offerte' knop gebruiken op de Offertes pagina voor een volledige wizard met foto-analyse!";
   }
 
   if (lower.includes("factuur") || lower.includes("facturen")) {
@@ -23,7 +23,8 @@ function createAssistantReply(input: string): string {
 }
 
 async function generateWithLLM(messages: { role: "user" | "assistant"; text: string }[]): Promise<string | null> {
-  const apiKey = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
+  // Check for Gemini API key (corrected from VITE_GEMINI_API_KEY which shouldn't be in server)
+  const apiKey = process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
     return null;
@@ -42,7 +43,14 @@ async function generateWithLLM(messages: { role: "user" | "assistant"; text: str
     const systemMessage = {
       role: "user",
       parts: [{ 
-        text: "Je bent ARCHON AI, een Nederlandse assistent voor bouwprofessionals. Antwoord kort, duidelijk en praktisch, in het Nederlands." 
+        text: `Je bent ARCHON AI, een Nederlandse assistent voor bouwprofessionals. Antwoord kort, duidelijk en praktisch, in het Nederlands.
+
+Je kunt ook offertes maken! Als een gebruiker vraagt om een offerte te maken, vraag dan naar:
+- Klantnaam
+- Type werkzaamheden (bijv. badkamer renovatie, schilderwerk, dakisolatie)
+- Optioneel: beschrijving, afmetingen (breedte × hoogte in meters), of foto's
+
+Als de gebruiker alle benodigde informatie geeft, kun je aangeven dat je de offerte kunt genereren via de API endpoint /api/offertes/generate.` 
       }],
     };
 
