@@ -127,7 +127,7 @@ export default function Landing() {
             <div className="relative max-w-5xl mx-auto group">
               <div className="absolute -inset-1 bg-gradient-to-r from-cyan-500 to-purple-600 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
               <img
-                src="/images/hero-gradient-mesh.png"
+                src="/images/dashboard-screenshot-2.png"
                 alt="Voorbeeld van ARCHON Dashboard"
                 className="relative w-full h-auto rounded-2xl shadow-2xl shadow-black/50 border border-white/10 bg-zinc-900/50 backdrop-blur-sm"
               />
@@ -312,7 +312,7 @@ export default function Landing() {
             <div className="absolute -inset-4 bg-gradient-to-br from-cyan-500/20 via-transparent to-purple-500/20 blur-2xl opacity-70" />
             <div className="relative rounded-3xl border border-white/10 bg-zinc-900/70 p-4 shadow-2xl">
               <img
-                src="/images/hero-gradient-mesh.png"
+                src="/images/dashboard-screenshot-2.png"
                 alt="Archon demo dashboard"
                 className="w-full rounded-2xl border border-white/10 bg-zinc-950/60"
               />

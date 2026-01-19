@@ -506,8 +506,13 @@ export default function Dashboard() {
                       </div>
                     </div>
                     <div className="hidden md:block">
-                      <div className="p-4 rounded-2xl bg-gradient-to-br from-purple-500/20 to-cyan-500/20 border border-white/10">
-                        <Sparkles className="w-12 h-12 text-cyan-400 ai-pulse" />
+                      <div className="relative w-64 h-48 rounded-2xl overflow-hidden border border-white/10 shadow-xl">
+                        <img
+                          src="/images/dashboard-screenshot-2.png"
+                          alt="Dashboard preview"
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
                       </div>
                     </div>
                   </div>
@@ -551,8 +556,17 @@ export default function Dashboard() {
                 {hasCashflow ? (
                   <CashflowChart data={cashflowData} height={300} />
                 ) : (
-                  <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">
-                    Nog geen cashflow data. Voeg transacties of facturen toe.
+                  <div className="h-[300px] relative rounded-lg overflow-hidden">
+                    <img
+                      src="/images/dashboard-screenshot-2.png"
+                      alt="Dashboard preview"
+                      className="w-full h-full object-cover opacity-20"
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <p className="text-sm text-muted-foreground bg-background/80 px-4 py-2 rounded-lg">
+                        Nog geen cashflow data. Voeg transacties of facturen toe.
+                      </p>
+                    </div>
                   </div>
                 )}
               </ChartContainer>
@@ -572,8 +586,17 @@ export default function Dashboard() {
                 {hasProjects ? (
                   <ProjectStatusChart data={projectData} height={300} />
                 ) : (
-                  <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">
-                    Nog geen projecten om te tonen.
+                  <div className="h-[300px] relative rounded-lg overflow-hidden">
+                    <img
+                      src="/images/dashboard-screenshot-2.png"
+                      alt="Dashboard preview"
+                      className="w-full h-full object-cover opacity-20"
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <p className="text-sm text-muted-foreground bg-background/80 px-4 py-2 rounded-lg">
+                        Nog geen projecten om te tonen.
+                      </p>
+                    </div>
                   </div>
                 )}
               </ChartContainer>
