@@ -1,12 +1,56 @@
 import { motion } from "framer-motion";
-import { PiggyBank, Plus, Search, ArrowUpRight, ArrowDownRight } from "lucide-react";
+import { PiggyBank, Plus, ArrowUpRight, ArrowDownRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useLocation } from "wouter";
+import { useStoredState } from "@/hooks/useStoredState";
+import { ModuleAccessGuard } from "@/components/ModuleAccessGuard";
+
+interface Transactie {
+  id: string;
+  titel: string;
+  beschrijving: string;
+  bedrag: number;
+  type: "inkomst" | "uitgave";
+  datum: string;
+}
+
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat("nl-NL", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0,
+  }).format(value);
 
 export default function Bankieren() {
+  const [, navigate] = useLocation();
+  const [transacties] = useStoredState<Transactie[]>("transacties", []);
+
+  const inkomsten = transacties.filter((transactie) => transactie.type === "inkomst");
+  const uitgaven = transacties.filter((transactie) => transactie.type === "uitgave");
+
+  const totalIncome = inkomsten.reduce(
+    (sum, transactie) => sum + (Number(transactie.bedrag) || 0),
+    0
+  );
+  const totalExpense = uitgaven.reduce(
+    (sum, transactie) => sum + (Number(transactie.bedrag) || 0),
+    0
+  );
+  const netBalance = totalIncome - totalExpense;
+
+  const recentTransactions = transacties
+    .slice()
+    .sort((a, b) => {
+      const dateA = new Date(a.datum).getTime();
+      const dateB = new Date(b.datum).getTime();
+      return dateB - dateA;
+    })
+    .slice(0, 5);
+
   return (
-    <div className="space-y-8">
+    <ModuleAccessGuard moduleKey="bankieren">
+      <div className="space-y-8">
       <div className="space-y-4">
         <nav className="flex items-center space-x-2 text-sm text-muted-foreground">
           <span>Pages</span>
@@ -40,7 +84,7 @@ export default function Bankieren() {
             transition={{ delay: 0.2 }}
             className="flex gap-3"
           >
-            <Button className="bg-blue-500 hover:bg-blue-600 text-white shadow-lg">
+            <Button className="bg-blue-500 hover:bg-blue-600 text-white shadow-lg" onClick={() => navigate("/transacties?new=1")}>
               <Plus className="w-4 h-4 mr-2" />
               Transactie Toevoegen
             </Button>
@@ -56,8 +100,8 @@ export default function Bankieren() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-cyan-400">€45.230,00</div>
-            <p className="text-sm text-muted-foreground">Zakelijke Rekening</p>
+            <div className="text-3xl font-bold text-cyan-400">{formatCurrency(netBalance)}</div>
+            <p className="text-sm text-muted-foreground">Op basis van transacties</p>
           </CardContent>
         </Card>
 
@@ -70,9 +114,9 @@ export default function Bankieren() {
           <CardContent>
             <div className="text-2xl font-bold text-cyan-400 flex items-center">
               <ArrowUpRight className="w-5 h-5 mr-1" />
-              €8.450
+              {formatCurrency(totalIncome)}
             </div>
-            <p className="text-sm text-muted-foreground">Deze maand</p>
+            <p className="text-sm text-muted-foreground">Inkomsten</p>
           </CardContent>
         </Card>
 
@@ -85,9 +129,9 @@ export default function Bankieren() {
           <CardContent>
             <div className="text-2xl font-bold text-red-400 flex items-center">
               <ArrowDownRight className="w-5 h-5 mr-1" />
-              €3.200
+              {formatCurrency(totalExpense)}
             </div>
-            <p className="text-sm text-muted-foreground">Deze maand</p>
+            <p className="text-sm text-muted-foreground">Uitgaven</p>
           </CardContent>
         </Card>
 
@@ -98,8 +142,8 @@ export default function Bankieren() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-400">€12.000</div>
-            <p className="text-sm text-muted-foreground">Beschikbaar</p>
+            <div className="text-2xl font-bold text-blue-400">--</div>
+            <p className="text-sm text-muted-foreground">Stel je reservebeleid in</p>
           </CardContent>
         </Card>
       </div>
@@ -111,31 +155,36 @@ export default function Bankieren() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {[1, 2, 3, 4, 5].map((i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, x: -20 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.1 * i }}
-              className="flex items-center gap-4 p-3 rounded-xl hover:bg-white/5 transition-colors"
-            >
-              <div className={`p-2 rounded-lg ${i % 2 === 0 ? 'bg-cyan-500/20 text-cyan-400' : 'bg-red-500/20 text-red-400'}`}>
-                {i % 2 === 0 ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
-              </div>
-              <div className="flex-1">
-                <p className="font-medium">Transactie {i}</p>
-                <p className="text-sm text-muted-foreground">Beschrijving van transactie</p>
-              </div>
-              <div className="text-right">
-                <p className={`font-semibold ${i % 2 === 0 ? 'text-cyan-400' : 'text-red-400'}`}>
-                  {i % 2 === 0 ? '+' : '-'}€{i * 100},00
-                </p>
-                <p className="text-xs text-muted-foreground">Vandaag</p>
-              </div>
-            </motion.div>
-          ))}
+          {recentTransactions.length === 0 ? (
+            <div className="text-sm text-muted-foreground">Nog geen transacties beschikbaar.</div>
+          ) : (
+            recentTransactions.map((transactie, index) => (
+              <motion.div
+                key={transactie.id}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: 0.1 * index }}
+                className="flex items-center gap-4 p-3 rounded-xl hover:bg-white/5 transition-colors"
+              >
+                <div className={`p-2 rounded-lg ${transactie.type === 'inkomst' ? 'bg-cyan-500/20 text-cyan-400' : 'bg-red-500/20 text-red-400'}`}>
+                  {transactie.type === 'inkomst' ? <ArrowUpRight className="w-4 h-4" /> : <ArrowDownRight className="w-4 h-4" />}
+                </div>
+                <div className="flex-1">
+                  <p className="font-medium">{transactie.titel}</p>
+                  <p className="text-sm text-muted-foreground">{transactie.beschrijving}</p>
+                </div>
+                <div className="text-right">
+                  <p className={`font-semibold ${transactie.type === 'inkomst' ? 'text-cyan-400' : 'text-red-400'}`}>
+                    {transactie.type === 'inkomst' ? '+' : '-'}{formatCurrency(transactie.bedrag)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">{transactie.datum}</p>
+                </div>
+              </motion.div>
+            ))
+          )}
         </CardContent>
       </Card>
     </div>
+    </ModuleAccessGuard>
   );
 }

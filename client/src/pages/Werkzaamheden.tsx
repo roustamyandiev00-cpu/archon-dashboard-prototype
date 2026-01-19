@@ -24,6 +24,7 @@ import {
   Filter,
   Check
 } from "lucide-react";
+import { nanoid } from "nanoid";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,8 +32,29 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import PageHeader from "@/components/PageHeader";
+import { useStoredState } from "@/hooks/useStoredState";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
-// Mock Data Structure matching the image
 interface WerkItem {
   id: string;
   titel: string;
@@ -45,63 +67,7 @@ interface WerkItem {
   btw: number;
 }
 
-const werkzaamheden: WerkItem[] = [
-  {
-    id: "1",
-    titel: "Wandtegels plaatsen",
-    beschrijving: "Wandtegels zetten inclusief voegen en kitten",
-    categorie: "Badkamer",
-    tags: ["tegels", "wand", "badkamer"],
-    prijs: 55,
-    eenheid: "per m²",
-    prijsRange: "€45 - €75",
-    btw: 9,
-  },
-  {
-    id: "2",
-    titel: "Vloertegels plaatsen",
-    beschrijving: "Vloertegels leggen inclusief verlijmen en voegen",
-    categorie: "Vloeren",
-    tags: ["tegels", "vloer", "badkamer"],
-    prijs: 65,
-    eenheid: "per m²",
-    prijsRange: "€50 - €85",
-    btw: 9,
-  },
-  {
-    id: "3",
-    titel: "Binnenwanden schilderen",
-    beschrijving: "Sausklaar maken en schilderen van wanden (2 lagen)",
-    categorie: "Schilderwerk",
-    tags: ["schilderen", "wand", "latex"],
-    prijs: 18,
-    eenheid: "per m²",
-    prijsRange: "€15 - €22",
-    btw: 9,
-  },
-  {
-    id: "4",
-    titel: "Stopcontact installeren",
-    beschrijving: "Aanleggen en monteren van geaard stopcontact",
-    categorie: "Elektra",
-    tags: ["elektra", "montage"],
-    prijs: 85,
-    eenheid: "per stuk",
-    prijsRange: "€75 - €95",
-    btw: 21,
-  },
-  {
-    id: "5",
-    titel: "Toilet plaatsen",
-    beschrijving: "Monteren hangend toilet inclusief inbouwreservoir",
-    categorie: "Loodgieterwerk",
-    tags: ["sanitair", "toilet", "installatie"],
-    prijs: 450,
-    eenheid: "per stuk",
-    prijsRange: "€400 - €550",
-    btw: 21,
-  },
-];
+const defaultWerkzaamheden: WerkItem[] = [];
 
 const categories = [
   { id: "all", label: "Alle", icon: null },
@@ -116,8 +82,23 @@ const categories = [
 ];
 
 export default function Werkzaamheden() {
+  const [werkzaamheden, setWerkzaamheden] = useStoredState<WerkItem[]>("werkzaamheden", defaultWerkzaamheden);
   const [activeCategory, setActiveCategory] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [formOpen, setFormOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [activeItem, setActiveItem] = useState<WerkItem | null>(null);
+  const [formState, setFormState] = useState({
+    id: "",
+    titel: "",
+    beschrijving: "",
+    categorie: "Badkamer",
+    tags: "",
+    prijs: "",
+    eenheid: "per m²",
+    prijsRange: "",
+    btw: "21",
+  });
 
   const filteredItems = werkzaamheden.filter((item) => {
     const matchesCategory = activeCategory === "all" || item.categorie.toLowerCase() === activeCategory || activeCategory === item.categorie.toLowerCase().replace(" ", "");
@@ -125,6 +106,93 @@ export default function Werkzaamheden() {
       item.beschrijving.toLowerCase().includes(searchQuery.toLowerCase());
     return matchesCategory && matchesSearch;
   });
+
+  const openCreateDialog = () => {
+    setActiveItem(null);
+    setFormState({
+      id: "",
+      titel: "",
+      beschrijving: "",
+      categorie: "Badkamer",
+      tags: "",
+      prijs: "",
+      eenheid: "per m²",
+      prijsRange: "",
+      btw: "21",
+    });
+    setFormOpen(true);
+  };
+
+  const openEditDialog = (item: WerkItem) => {
+    setActiveItem(item);
+    setFormState({
+      id: item.id,
+      titel: item.titel,
+      beschrijving: item.beschrijving,
+      categorie: item.categorie,
+      tags: item.tags.join(", "),
+      prijs: String(item.prijs),
+      eenheid: item.eenheid,
+      prijsRange: item.prijsRange,
+      btw: String(item.btw),
+    });
+    setFormOpen(true);
+  };
+
+  const openDetailDialog = (item: WerkItem) => {
+    setActiveItem(item);
+    setDetailOpen(true);
+  };
+
+  const handleFormSubmit = () => {
+    if (!formState.titel.trim()) {
+      toast.error("Titel ontbreekt", { description: "Geef een titel op." });
+      return;
+    }
+    const prijs = Number(formState.prijs);
+    if (!Number.isFinite(prijs) || prijs <= 0) {
+      toast.error("Prijs is ongeldig", { description: "Voer een geldige prijs in." });
+      return;
+    }
+    const btw = Number(formState.btw);
+    if (!Number.isFinite(btw) || btw < 0) {
+      toast.error("BTW is ongeldig", { description: "Voer een geldig BTW-percentage in." });
+      return;
+    }
+
+    const tags = formState.tags
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean);
+    const fallbackRange = `€${(prijs * 0.8).toFixed(0)} - €${(prijs * 1.2).toFixed(0)}`;
+
+    const payload: WerkItem = {
+      id: formState.id || nanoid(8),
+      titel: formState.titel.trim(),
+      beschrijving: formState.beschrijving.trim(),
+      categorie: formState.categorie,
+      tags,
+      prijs,
+      eenheid: formState.eenheid.trim() || "per stuk",
+      prijsRange: formState.prijsRange.trim() || fallbackRange,
+      btw,
+    };
+
+    if (activeItem) {
+      setWerkzaamheden((prev) => prev.map((item) => (item.id === payload.id ? payload : item)));
+      toast.success("Werkzaamheid bijgewerkt", { description: `${payload.titel} is aangepast.` });
+    } else {
+      setWerkzaamheden((prev) => [payload, ...prev]);
+      toast.success("Werkzaamheid toegevoegd", { description: `${payload.titel} is toegevoegd.` });
+    }
+    setFormOpen(false);
+    setActiveItem(payload);
+  };
+
+  const handleDelete = (item: WerkItem) => {
+    setWerkzaamheden((prev) => prev.filter((entry) => entry.id !== item.id));
+    toast.success("Werkzaamheid verwijderd", { description: `${item.titel} is verwijderd.` });
+  };
 
   return (
     <div className="space-y-8">
@@ -134,7 +202,7 @@ export default function Werkzaamheden() {
         rightSlot={
           <Button
             className="bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-600 hover:to-cyan-700 text-white shadow-lg glow-cyan"
-            onClick={() => toast("Nieuwe Werkzaamheid", { description: "Deze functie komt binnenkort." })}
+            onClick={openCreateDialog}
           >
             <Plus className="w-4 h-4 mr-2" />
             Nieuw Item
@@ -283,9 +351,24 @@ export default function Werkzaamheden() {
 
                 {/* Hover Actions (Desktop) */}
                 <div className="absolute right-4 top-4 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <Button variant="ghost" size="icon" className="hover:bg-white/10">
-                    <MoreVertical className="w-4 h-4 text-muted-foreground" />
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="hover:bg-white/10">
+                        <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="glass-card border-white/10">
+                      <DropdownMenuItem onClick={() => openDetailDialog(item)}>
+                        Bekijken
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => openEditDialog(item)}>
+                        Bewerken
+                      </DropdownMenuItem>
+                      <DropdownMenuItem className="text-destructive" onClick={() => handleDelete(item)}>
+                        Verwijderen
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
               </motion.div>
             ))}
@@ -299,6 +382,154 @@ export default function Werkzaamheden() {
           </CardContent>
         </Card>
       </motion.div>
+
+      <Dialog open={formOpen} onOpenChange={setFormOpen}>
+        <DialogContent className="glass-card border-white/10 sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{activeItem ? "Werkzaamheid bewerken" : "Nieuwe werkzaamheid"}</DialogTitle>
+            <DialogDescription>Leg de standaardprijs en categorie vast.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4">
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Titel</label>
+              <Input
+                value={formState.titel}
+                onChange={(e) => setFormState((prev) => ({ ...prev, titel: e.target.value }))}
+              />
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Beschrijving</label>
+              <Input
+                value={formState.beschrijving}
+                onChange={(e) => setFormState((prev) => ({ ...prev, beschrijving: e.target.value }))}
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Categorie</label>
+                <Select
+                  value={formState.categorie}
+                  onValueChange={(value) => setFormState((prev) => ({ ...prev, categorie: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="glass-card border-white/10">
+                    {categories.filter((cat) => cat.id !== "all").map((cat) => (
+                      <SelectItem key={cat.id} value={cat.label}>
+                        {cat.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">BTW (%)</label>
+                <Input
+                  type="number"
+                  value={formState.btw}
+                  onChange={(e) => setFormState((prev) => ({ ...prev, btw: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Prijs</label>
+                <Input
+                  type="number"
+                  value={formState.prijs}
+                  onChange={(e) => setFormState((prev) => ({ ...prev, prijs: e.target.value }))}
+                />
+              </div>
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Eenheid</label>
+                <Input
+                  value={formState.eenheid}
+                  onChange={(e) => setFormState((prev) => ({ ...prev, eenheid: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Tags (komma-gescheiden)</label>
+              <Input
+                value={formState.tags}
+                onChange={(e) => setFormState((prev) => ({ ...prev, tags: e.target.value }))}
+              />
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Prijsrange (optioneel)</label>
+              <Input
+                value={formState.prijsRange}
+                onChange={(e) => setFormState((prev) => ({ ...prev, prijsRange: e.target.value }))}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" className="border-white/10 hover:bg-white/5" onClick={() => setFormOpen(false)}>
+              Annuleren
+            </Button>
+            <Button className="bg-cyan-500 hover:bg-cyan-600 text-white" onClick={handleFormSubmit}>
+              Opslaan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="glass-card border-white/10 sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Werkzaamheid details</DialogTitle>
+            <DialogDescription>Bekijk de details van dit item.</DialogDescription>
+          </DialogHeader>
+          {activeItem && (
+            <div className="space-y-4">
+              <div>
+                <p className="text-lg font-semibold">{activeItem.titel}</p>
+                <p className="text-sm text-muted-foreground">{activeItem.beschrijving}</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Categorie</p>
+                  <p className="font-medium">{activeItem.categorie}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">BTW</p>
+                  <p className="font-medium">{activeItem.btw}%</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Prijs</p>
+                  <p className="font-medium">€{activeItem.prijs} {activeItem.eenheid}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Prijsrange</p>
+                  <p className="font-medium">{activeItem.prijsRange}</p>
+                </div>
+              </div>
+              {activeItem.tags.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {activeItem.tags.map((tag) => (
+                    <span key={tag} className="text-xs px-2 py-1 rounded bg-white/5 text-muted-foreground border border-white/5">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            {activeItem && (
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:justify-end">
+                <Button variant="outline" className="border-white/10 hover:bg-white/5" onClick={() => openEditDialog(activeItem)}>
+                  Bewerken
+                </Button>
+                <Button className="bg-cyan-500 hover:bg-cyan-600 text-white" onClick={() => handleDelete(activeItem)}>
+                  Verwijderen
+                </Button>
+              </div>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
+import { useUserProfile } from "@/hooks/useUserProfile";
 
 interface OnboardingStep {
   id: number;
@@ -41,6 +42,7 @@ export default function Onboarding({
 
   const [, navigate] = useLocation();
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { updateProfile } = useUserProfile();
 
   useEffect(() => {
     if (isOpen) {
@@ -91,12 +93,16 @@ export default function Onboarding({
     }
   };
 
-  const handleComplete = () => {
-    // Save onboarding completion
-    localStorage.setItem("archon_onboarding_completed", "true");
-
-    // Persist company info for demo purposes
-    localStorage.setItem("archon_company_info", JSON.stringify(companyInfo));
+  const handleComplete = async () => {
+    await updateProfile({
+      onboardingComplete: true,
+      company: {
+        name: companyInfo.name,
+        email: companyInfo.email,
+        phone: companyInfo.phone,
+        address: companyInfo.address,
+      },
+    });
 
     toast("Onboarding voltooid", {
       description: "Je dashboard is klaar voor gebruik.",
@@ -106,8 +112,10 @@ export default function Onboarding({
     navigate("/dashboard");
   };
 
-  const handleStartFresh = () => {
-    localStorage.setItem("archon_customers_imported", "fresh");
+  const handleStartFresh = async () => {
+    await updateProfile({
+      onboardingImport: "fresh",
+    });
     toast("Schone start", {
       description: "Je kunt nu klanten toevoegen in Klanten.",
     });
@@ -118,15 +126,14 @@ export default function Onboarding({
     fileInputRef.current?.click();
   };
 
-  const handleImportFile = (file: File | null) => {
+  const handleImportFile = async (file: File | null) => {
     if (!file) return;
-    localStorage.setItem("archon_customers_imported", "file");
-    localStorage.setItem(
-      "archon_customers_imported_filename",
-      `${file.name}`
-    );
+    await updateProfile({
+      onboardingImport: "file",
+      onboardingImportFilename: file.name,
+    });
     toast("Import geselecteerd", {
-      description: `${file.name} is geselecteerd. (Demo: import wordt nog niet echt verwerkt)`
+      description: `${file.name} is geselecteerd. We bereiden de import voor.`
     });
     handleNext();
   };

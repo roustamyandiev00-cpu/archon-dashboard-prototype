@@ -9,6 +9,7 @@
 import { ReactNode, useState, useEffect } from "react";
 import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
+import { auth, signOut } from "@/lib/firebase";
 import {
   Menu,
   X,
@@ -29,9 +30,18 @@ import {
   Bell,
   Search,
   Check,
+  CheckCircle2,
   AlertTriangle,
   Info,
-  BellRing
+  BellRing,
+  Crown,
+  Wallet,
+  Mic,
+  Eye,
+  EyeOff,
+  Zap,
+  Activity,
+  Database
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -51,80 +61,85 @@ import DashboardTour from "./DashboardTour";
 import { CommandMenu } from "./CommandMenu";
 import { AIAssistantPanel } from "./AIAssistantPanel";
 import { ThemeToggle } from "./ThemeToggle";
+import { useUserProfile } from "@/hooks/useUserProfile";
+import { useAuth } from "@/contexts/AuthContext";
+import type { ModuleKey } from "@/data/modules";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "./ui/dialog";
+import { ScrollArea } from "./ui/scroll-area";
+import { seedLocalStorage } from "@/lib/demo-data";
 
 interface NavItem {
   label: string;
   href: string;
   icon: ReactNode;
+  moduleKey?: ModuleKey;
 }
 
 const navItems: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: <LayoutDashboard className="w-5 h-5" /> },
-  { label: "Klanten", href: "/klanten", icon: <Users className="w-5 h-5" /> },
-  { label: "Projecten", href: "/projecten", icon: <FolderOpen className="w-5 h-5" /> },
-  { label: "Offertes", href: "/offertes", icon: <Receipt className="w-5 h-5" /> },
-  { label: "Facturen", href: "/facturen", icon: <FileText className="w-5 h-5" /> },
-  { label: "Werkzaamheden", href: "/werkzaamheden", icon: <Sparkles className="w-5 h-5" /> },
-  { label: "E-mail", href: "/email", icon: <Mail className="w-5 h-5" /> },
-  { label: "Agenda", href: "/agenda", icon: <Calendar className="w-5 h-5" /> },
-  { label: "Uitgaven", href: "/uitgaven", icon: <CreditCard className="w-5 h-5" /> },
-  { label: "Bankieren", href: "/bankieren", icon: <PiggyBank className="w-5 h-5" /> },
-  { label: "Inzichten", href: "/inzichten", icon: <TrendingUp className="w-5 h-5" /> },
-  { label: "AI Assistant", href: "/ai-assistant", icon: <Sparkles className="w-5 h-5" /> },
+  { label: "Klanten", href: "/klanten", icon: <Users className="w-5 h-5" />, moduleKey: "klanten" },
+  { label: "Projecten", href: "/projecten", icon: <FolderOpen className="w-5 h-5" />, moduleKey: "projecten" },
+  { label: "Offertes", href: "/offertes", icon: <Receipt className="w-5 h-5" />, moduleKey: "offertes" },
+  { label: "Facturen", href: "/facturen", icon: <FileText className="w-5 h-5" />, moduleKey: "facturen" },
+  { label: "Werkzaamheden", href: "/werkzaamheden", icon: <Sparkles className="w-5 h-5" />, moduleKey: "werkzaamheden" },
+  { label: "E-mail", href: "/email", icon: <Mail className="w-5 h-5" />, moduleKey: "email" },
+  { label: "Agenda", href: "/agenda", icon: <Calendar className="w-5 h-5" />, moduleKey: "agenda" },
+  { label: "Uitgaven", href: "/uitgaven", icon: <CreditCard className="w-5 h-5" />, moduleKey: "uitgaven" },
+  { label: "Bankieren", href: "/bankieren", icon: <PiggyBank className="w-5 h-5" />, moduleKey: "bankieren" },
+  { label: "Inzichten", href: "/inzichten", icon: <TrendingUp className="w-5 h-5" />, moduleKey: "inzichten" },
+  { label: "Transacties", href: "/transacties", icon: <Wallet className="w-5 h-5" />, moduleKey: "transacties" },
+  { label: "AI Assistant", href: "/ai-assistant", icon: <Sparkles className="w-5 h-5" />, moduleKey: "ai-assistant" },
 ];
 
 const bottomNavItems: NavItem[] = [
+  { label: "Abonnementen", href: "/app/pricing", icon: <Crown className="w-5 h-5" /> },
+  { label: "Modules", href: "/modules", icon: <CheckCircle2 className="w-5 h-5" /> },
   { label: "Instellingen", href: "/instellingen", icon: <Settings className="w-5 h-5" /> },
   { label: "Help & Support", href: "/help", icon: <HelpCircle className="w-5 h-5" /> },
 ];
 
-// Mock Notifications
-const notifications = [
+interface DashboardNotification {
+  id: string;
+  title: string;
+  message: string;
+  time: string;
+  type: "urgent" | "action" | "success" | "info";
+  read: boolean;
+}
+
+const notifications: DashboardNotification[] = [
   {
-    id: 1,
-    title: "BTW Aangifte Q1",
-    message: "Deadline nadert! Nog 3 dagen om in te dienen.",
-    time: "2 uur geleden",
-    type: "urgent",
-    read: false
+    id: "1",
+    title: "Welkom bij Archon",
+    message: "Welkom bij je nieuwe dashboard. Start met het instellen van je profiel.",
+    time: "Net nu",
+    type: "info",
+    read: false,
   },
   {
-    id: 2,
-    title: "Nieuwe Offerte Aanvraag",
-    message: "Fam. Jansen heeft een aanvraag gedaan voor 'Badkamer Renovatie'.",
+    id: "2",
+    title: "Factuur #2024-001 Betaald",
+    message: "De betaling voor factuur #2024-001 is succesvol ontvangen.",
+    time: "2 uur geleden",
+    type: "success",
+    read: true,
+  },
+  {
+    id: "3",
+    title: "Nieuwe AI Inzichten",
+    message: "Archon AI heeft nieuwe bespaarmogelijkheden gevonden voor deze maand.",
     time: "5 uur geleden",
     type: "action",
-    read: false
-  },
-  {
-    id: 3,
-    title: "Betaling Ontvangen",
-    message: "Factuur #2024-001 is voldaan door Tech Solutions.",
-    time: "1 dag geleden",
-    type: "success",
-    read: true
-  },
-  {
-    id: 4,
-    title: "Systeem Update",
-    message: "Nieuwe AI features zijn nu beschikbaar voor jouw account.",
-    time: "2 dagen geleden",
-    type: "info",
-    read: true
+    read: false,
   }
 ];
-
-// ... imports
-import {
-  // ... existing imports
-  Mic,
-  Eye,
-  EyeOff,
-  Zap,
-  Activity
-} from "lucide-react";
-
-// ... existing code ...
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -132,15 +147,39 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   const [focusMode, setFocusMode] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [location] = useLocation();
-  const [unreadCount, setUnreadCount] = useState(notifications.filter(n => !n.read).length);
+  const [notificationItems, setNotificationItems] = useState(notifications);
+  const [notificationListOpen, setNotificationListOpen] = useState(false);
+  const [notificationDetailOpen, setNotificationDetailOpen] = useState(false);
+  const [activeNotification, setActiveNotification] = useState<DashboardNotification | null>(null);
+  const unreadCount = notificationItems.filter(n => !n.read).length;
+
+  const { profile } = useUserProfile();
+  const { user } = useAuth();
+  const selectedModules = profile?.modules ?? [];
+  const shouldFilterModules = selectedModules.length > 0;
+  const visibleNavItems = shouldFilterModules
+    ? navItems.filter((item) => !item.moduleKey || selectedModules.includes(item.moduleKey))
+    : navItems;
+  const displayName =
+    profile?.name?.trim() ||
+    user?.displayName?.trim() ||
+    user?.email?.split("@")[0] ||
+    "Account";
+  const secondaryLabel = profile?.company?.name?.trim() || user?.email || "Gebruiker";
+  const avatarFallback = displayName
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("") || "AC";
 
   useEffect(() => {
-    // Check if user has completed onboarding
-    const hasCompletedOnboarding = localStorage.getItem('archon_onboarding_completed');
-    if (!hasCompletedOnboarding) {
+    if (profile && !profile.onboardingComplete && location !== "/modules") {
       setShowOnboarding(true);
+      return;
     }
-  }, []);
+    setShowOnboarding(false);
+  }, [profile, location]);
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
@@ -183,14 +222,26 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
   };
 
   const markAllRead = () => {
-    setUnreadCount(0);
+    setNotificationItems((prev) => prev.map((notification) => ({ ...notification, read: true })));
     toast("Gelezen", { description: "Alle meldingen zijn gemarkeerd als gelezen." });
   };
 
-  const handleLogout = () => {
-    // Demo logout
-    toast("Uitloggen", { description: "Je bent uitgelogd." });
-    window.location.href = "/";
+  const handleNotificationClick = (notification: (typeof notifications)[number]) => {
+    setNotificationItems((prev) =>
+      prev.map((item) => (item.id === notification.id ? { ...item, read: true } : item))
+    );
+    setActiveNotification(notification);
+    setNotificationDetailOpen(true);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut(auth);
+      toast("Uitloggen", { description: "Je bent uitgelogd." });
+      window.location.href = "/";
+    } catch {
+      toast.error("Uitloggen mislukt. Probeer het opnieuw.");
+    }
   };
 
   return (
@@ -222,7 +273,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         </div>
         <div className="flex items-center gap-2">
           {/* Mobile Notification Button (simplified for now) */}
-          <Button variant="ghost" size="icon" onClick={() => toast("Notificaties", { description: "Open desktop versie voor details." })}>
+          <Button variant="ghost" size="icon" onClick={() => setNotificationListOpen(true)}>
             <Bell className="w-5 h-5" />
             {unreadCount > 0 && <span className="absolute top-2 right-2 w-2 h-2 bg-red-500 rounded-full" />}
           </Button>
@@ -260,10 +311,10 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             animate={{ x: 0 }}
             exit={{ x: -280 }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="lg:hidden fixed top-0 left-0 bottom-0 z-50 w-[280px] glass-card border-r border-border pt-20 pb-6 px-4"
+            className="lg:hidden fixed top-0 left-0 bottom-0 z-50 w-[280px] glass-card border-r border-border pt-16 pb-6 px-4 safe-area-inset-top"
           >
             <nav className="flex flex-col gap-1">
-              {navItems.map((item) => (
+              {visibleNavItems.map((item) => (
                 <Link key={item.href} href={item.href}>
                   <motion.div
                     whileTap={{ scale: 0.98 }}
@@ -356,7 +407,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
 
           {/* Navigation */}
           <nav className="flex-1 flex flex-col gap-1 overflow-y-auto min-h-0 py-2 no-scrollbar">
-            {navItems.map((item) => (
+            {visibleNavItems.map((item) => (
               <Link key={item.href} href={item.href}>
                 <motion.div
                   whileHover={{ x: 4 }}
@@ -439,7 +490,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       {/* Main Content Area */}
       <main
         className={cn(
-          "min-h-screen transition-all duration-300 ease-out pt-16 lg:pt-0",
+          "min-h-screen transition-all duration-300 ease-out pt-16 lg:pt-0 safe-area-inset-top",
           sidebarOpen ? "lg:pl-[280px]" : "lg:pl-[80px]"
         )}
       >
@@ -472,6 +523,17 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               title="Focus Mode (Toon alleen kerncijfers)"
             >
               {focusMode ? <Eye className="w-5 h-5" /> : <EyeOff className="w-5 h-5" />}
+            </Button>
+
+            {/* Demo Data Button */}
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={seedLocalStorage}
+              className="text-muted-foreground hover:text-cyan-400"
+              title="Laad Demo Data (Reset)"
+            >
+              <Database className="w-5 h-5" />
             </Button>
 
             {/* Voice Command Trigger (Desktop) */}
@@ -511,46 +573,65 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
                   )}
                 </div>
                 <div className="max-h-[400px] overflow-y-auto custom-scrollbar">
-                  {notifications.map((notification) => (
-                    <DropdownMenuItem
-                      key={notification.id}
-                      className="p-4 cursor-pointer focus:bg-white/5 hover:bg-white/5 border-b border-white/5 last:border-0 items-start gap-4"
-                      onClick={() => toast(notification.title, { description: "Detail weergave opent binnenkort." })}
-                    >
-                      <div className={cn(
-                        "w-8 h-8 rounded-full flex items-center justify-center shrink-0 border",
-                        notification.type === 'urgent' ? "bg-red-500/10 border-red-500/20 text-red-500" :
-                          notification.type === 'action' ? "bg-cyan-500/10 border-cyan-500/20 text-cyan-400" :
-                            notification.type === 'success' ? "bg-green-500/10 border-green-500/20 text-green-400" :
-                              "bg-blue-500/10 border-blue-500/20 text-blue-400"
-                      )}>
-                        {notification.type === 'urgent' ? <AlertTriangle className="w-4 h-4" /> :
-                          notification.type === 'action' ? <BellRing className="w-4 h-4" /> :
-                            notification.type === 'success' ? <Check className="w-4 h-4" /> :
-                              <Info className="w-4 h-4" />}
-                      </div>
-                      <div className="flex-1 space-y-1">
-                        <div className="flex items-center justify-between">
-                          <p className="text-sm font-medium leading-none">{notification.title}</p>
-                          <span className="text-[10px] text-muted-foreground">{notification.time}</span>
+                  {notificationItems.length === 0 ? (
+                    <div className="p-6 text-center text-xs text-muted-foreground">
+                      Geen notificaties.
+                    </div>
+                  ) : (
+                    notificationItems.map((notification) => (
+                      <DropdownMenuItem
+                        key={notification.id}
+                        className="p-4 cursor-pointer focus:bg-white/5 hover:bg-white/5 border-b border-white/5 last:border-0 items-start gap-4"
+                        onClick={() => handleNotificationClick(notification)}
+                      >
+                        <div className={cn(
+                          "w-8 h-8 rounded-full flex items-center justify-center shrink-0 border",
+                          notification.type === 'urgent' ? "bg-red-500/10 border-red-500/20 text-red-500" :
+                            notification.type === 'action' ? "bg-cyan-500/10 border-cyan-500/20 text-cyan-400" :
+                              notification.type === 'success' ? "bg-green-500/10 border-green-500/20 text-green-400" :
+                                "bg-blue-500/10 border-blue-500/20 text-blue-400"
+                        )}>
+                          {notification.type === 'urgent' ? <AlertTriangle className="w-4 h-4" /> :
+                            notification.type === 'action' ? <BellRing className="w-4 h-4" /> :
+                              notification.type === 'success' ? <Check className="w-4 h-4" /> :
+                                <Info className="w-4 h-4" />}
                         </div>
-                        <p className="text-xs text-muted-foreground line-clamp-2">{notification.message}</p>
-                        {notification.type === 'action' && (
-                          <div className="pt-2">
-                            <Button size="sm" variant="outline" className="h-7 text-xs border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10">
-                              Bekijken
-                            </Button>
+                        <div className="flex-1 space-y-1">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium leading-none">{notification.title}</p>
+                            <span className="text-[10px] text-muted-foreground">{notification.time}</span>
                           </div>
+                          <p className="text-xs text-muted-foreground line-clamp-2">{notification.message}</p>
+                          {notification.type === 'action' && (
+                            <div className="pt-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  handleNotificationClick(notification);
+                                }}
+                              >
+                                Bekijken
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                        {!notification.read && (
+                          <div className="w-2 h-2 rounded-full bg-cyan-500 mt-1.5" />
                         )}
-                      </div>
-                      {!notification.read && (
-                        <div className="w-2 h-2 rounded-full bg-cyan-500 mt-1.5" />
-                      )}
-                    </DropdownMenuItem>
-                  ))}
+                      </DropdownMenuItem>
+                    ))
+                  )}
                 </div>
                 <div className="p-2 border-t border-white/10 bg-white/5 text-center">
-                  <Button variant="ghost" size="sm" className="text-xs text-muted-foreground w-full h-8">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs text-muted-foreground w-full h-8"
+                    onClick={() => setNotificationListOpen(true)}
+                  >
                     Bekijk geschiedenis
                   </Button>
                 </div>
@@ -561,12 +642,12 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center gap-3 px-2">
                   <Avatar className="w-8 h-8">
-                    <AvatarImage src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=32&h=32&fit=crop&crop=face" />
-                    <AvatarFallback>JD</AvatarFallback>
+                    <AvatarImage src={user?.photoURL ?? undefined} alt={displayName} />
+                    <AvatarFallback>{avatarFallback}</AvatarFallback>
                   </Avatar>
                   <div className="text-left hidden xl:block">
-                    <p className="text-sm font-medium">Jan de Vries</p>
-                    <p className="text-xs text-muted-foreground">Eigenaar</p>
+                    <p className="text-sm font-medium">{displayName}</p>
+                    <p className="text-xs text-muted-foreground">{secondaryLabel}</p>
                   </div>
                 </Button>
               </DropdownMenuTrigger>
@@ -593,7 +674,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
         </header>
 
         {/* Page Content */}
-        <div className="p-4 lg:p-8">
+        <div className="p-4 lg:p-8 pb-32 lg:pb-8">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -603,6 +684,70 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           </motion.div>
         </div>
       </main>
+
+      <Dialog open={notificationListOpen} onOpenChange={setNotificationListOpen}>
+        <DialogContent className="glass-card border-white/10 sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Notificaties</DialogTitle>
+            <DialogDescription>Overzicht van al je meldingen.</DialogDescription>
+          </DialogHeader>
+          <div className="flex items-center justify-between text-sm text-muted-foreground">
+            <span>{unreadCount} ongelezen</span>
+            <Button variant="ghost" size="sm" className="text-xs" onClick={markAllRead} disabled={unreadCount === 0}>
+              Alles gelezen
+            </Button>
+          </div>
+          <ScrollArea className="max-h-[360px] mt-2">
+            <div className="space-y-2">
+              {notificationItems.length === 0 ? (
+                <div className="p-4 text-center text-xs text-muted-foreground">
+                  Geen notificaties.
+                </div>
+              ) : (
+                notificationItems.map((notification) => (
+                  <button
+                    key={notification.id}
+                    type="button"
+                    onClick={() => handleNotificationClick(notification)}
+                    className={cn(
+                      "w-full text-left p-3 rounded-lg border border-white/10 hover:bg-white/5 transition-colors",
+                      notification.read ? "bg-transparent" : "bg-white/5"
+                    )}
+                  >
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium">{notification.title}</p>
+                      <span className="text-[10px] text-muted-foreground">{notification.time}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">{notification.message}</p>
+                  </button>
+                ))
+              )}
+            </div>
+          </ScrollArea>
+          <DialogFooter>
+            <Button variant="outline" className="border-white/10 hover:bg-white/5" onClick={() => setNotificationListOpen(false)}>
+              Sluiten
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={notificationDetailOpen} onOpenChange={setNotificationDetailOpen}>
+        <DialogContent className="glass-card border-white/10 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{activeNotification?.title}</DialogTitle>
+            <DialogDescription>{activeNotification?.time}</DialogDescription>
+          </DialogHeader>
+          <div className="text-sm text-muted-foreground">
+            {activeNotification?.message}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" className="border-white/10 hover:bg-white/5" onClick={() => setNotificationDetailOpen(false)}>
+              Sluiten
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <DashboardTour />
 
       {/* Global AI Assistant Panel Overlay */}
@@ -623,7 +768,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="fixed top-0 right-0 bottom-0 z-50 w-full sm:w-[400px] shadow-2xl"
+              className="fixed top-0 right-0 bottom-0 z-50 w-full sm:w-[400px] shadow-2xl safe-area-inset-bottom safe-area-inset-top"
             >
               <div className="h-full relative">
                 <AIAssistantPanel

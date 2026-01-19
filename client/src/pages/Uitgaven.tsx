@@ -1,10 +1,56 @@
 import { motion } from "framer-motion";
-import { CreditCard, Plus, Search, TrendingDown } from "lucide-react";
+import { CreditCard, Plus, TrendingDown } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useLocation } from "wouter";
+import { useStoredState } from "@/hooks/useStoredState";
+
+interface Transactie {
+  id: string;
+  titel: string;
+  beschrijving: string;
+  bedrag: number;
+  type: "inkomst" | "uitgave";
+  categorie: string;
+  datum: string;
+}
+
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat("nl-NL", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0,
+  }).format(value);
 
 export default function Uitgaven() {
+  const [, navigate] = useLocation();
+  const [transacties] = useStoredState<Transactie[]>("transacties", []);
+
+  const uitgaven = transacties.filter((transactie) => transactie.type === "uitgave");
+  const totaalUitgaven = uitgaven.reduce(
+    (sum, transactie) => sum + (Number(transactie.bedrag) || 0),
+    0
+  );
+
+  const categorieTotals = uitgaven.reduce<Record<string, number>>((acc, transactie) => {
+    const key = transactie.categorie || "Overig";
+    acc[key] = (acc[key] || 0) + (Number(transactie.bedrag) || 0);
+    return acc;
+  }, {});
+
+  const topCategories = Object.entries(categorieTotals)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3);
+
+  const recentUitgaven = uitgaven
+    .slice()
+    .sort((a, b) => {
+      const dateA = new Date(a.datum).getTime();
+      const dateB = new Date(b.datum).getTime();
+      return dateB - dateA;
+    })
+    .slice(0, 3);
+
   return (
     <div className="space-y-8">
       <div className="space-y-4">
@@ -40,7 +86,10 @@ export default function Uitgaven() {
             transition={{ delay: 0.2 }}
             className="flex gap-3"
           >
-            <Button className="bg-red-500 hover:bg-red-600 text-white shadow-lg">
+            <Button
+              className="bg-red-500 hover:bg-red-600 text-white shadow-lg"
+              onClick={() => navigate("/transacties?new=1&type=uitgave&categorie=Materialen")}
+            >
               <Plus className="w-4 h-4 mr-2" />
               Nieuwe Uitgave
             </Button>
@@ -56,8 +105,10 @@ export default function Uitgaven() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-red-400">€12.450,00</div>
-            <p className="text-sm text-muted-foreground">Deze maand</p>
+            <div className="text-3xl font-bold text-red-400">
+              {formatCurrency(totaalUitgaven)}
+            </div>
+            <p className="text-sm text-muted-foreground">Op basis van transacties</p>
           </CardContent>
         </Card>
 
@@ -68,18 +119,16 @@ export default function Uitgaven() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            <div className="flex justify-between">
-              <span className="text-sm">Materialen</span>
-              <span className="text-sm font-medium">€5.200</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm">Brandstof</span>
-              <span className="text-sm font-medium">€1.850</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-sm">Gereedschap</span>
-              <span className="text-sm font-medium">€3.400</span>
-            </div>
+            {topCategories.length === 0 ? (
+              <div className="text-sm text-muted-foreground">Nog geen uitgaven categorieen.</div>
+            ) : (
+              topCategories.map(([category, total]) => (
+                <div key={category} className="flex justify-between">
+                  <span className="text-sm">{category}</span>
+                  <span className="text-sm font-medium">{formatCurrency(total)}</span>
+                </div>
+              ))
+            )}
           </CardContent>
         </Card>
 
@@ -90,18 +139,22 @@ export default function Uitgaven() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="flex items-center gap-3">
-                <div className="p-2 rounded-lg bg-red-500/20 text-red-400">
-                  <TrendingDown className="w-4 h-4" />
+            {recentUitgaven.length === 0 ? (
+              <div className="text-sm text-muted-foreground">Nog geen recente uitgaven.</div>
+            ) : (
+              recentUitgaven.map((uitgave) => (
+                <div key={uitgave.id} className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-red-500/20 text-red-400">
+                    <TrendingDown className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium">{uitgave.titel}</p>
+                    <p className="text-xs text-muted-foreground">{uitgave.datum}</p>
+                  </div>
+                  <span className="text-sm font-medium">{formatCurrency(uitgave.bedrag)}</span>
                 </div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Uitgave {i}</p>
-                  <p className="text-xs text-muted-foreground">Vandaag</p>
-                </div>
-                <span className="text-sm font-medium">€{i * 50},00</span>
-              </div>
-            ))}
+              ))
+            )}
           </CardContent>
         </Card>
       </div>

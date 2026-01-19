@@ -6,7 +6,7 @@
  * - Hover effects with glow
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Search,
@@ -25,6 +25,7 @@ import {
   Building2,
   Calendar
 } from "lucide-react";
+import { nanoid } from "nanoid";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,9 +36,26 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import PageHeader from "@/components/PageHeader";
+import { exportToCsv, openPrintableDocument } from "@/lib/file";
+import { useStoredState } from "@/hooks/useStoredState";
 
 interface Factuur {
   id: string;
@@ -50,68 +68,7 @@ interface Factuur {
   items: number;
 }
 
-const facturen: Factuur[] = [
-  {
-    id: "1",
-    nummer: "FAC-2024-001",
-    klant: "Familie Jansen",
-    bedrag: 2500,
-    datum: "2024-01-10",
-    vervaldatum: "2024-01-24",
-    status: "betaald",
-    items: 4,
-  },
-  {
-    id: "2",
-    nummer: "FAC-2024-002",
-    klant: "De Vries Bouw B.V.",
-    bedrag: 8750.50,
-    datum: "2024-01-12",
-    vervaldatum: "2024-01-26",
-    status: "openstaand",
-    items: 12,
-  },
-  {
-    id: "3",
-    nummer: "FAC-2024-003",
-    klant: "Maria Bakker",
-    bedrag: 450.00,
-    datum: "2023-12-28",
-    vervaldatum: "2024-01-11",
-    status: "overtijd",
-    items: 2,
-  },
-  {
-    id: "4",
-    nummer: "FAC-2024-004",
-    klant: "Smit & Zonen",
-    bedrag: 12500.00,
-    datum: "2024-01-15",
-    vervaldatum: "2024-01-29",
-    status: "concept",
-    items: 8,
-  },
-  {
-    id: "5",
-    nummer: "FAC-2024-005",
-    klant: "Lisa van Dam",
-    bedrag: 1250.00,
-    datum: "2024-01-14",
-    vervaldatum: "2024-01-28",
-    status: "openstaand",
-    items: 3,
-  },
-  {
-    id: "6",
-    nummer: "FAC-2024-006",
-    klant: "Visser Renovaties",
-    bedrag: 3400.00,
-    datum: "2024-01-08",
-    vervaldatum: "2024-01-22",
-    status: "betaald",
-    items: 6,
-  },
-];
+const defaultFacturen: Factuur[] = [];
 
 const statusConfig = {
   betaald: {
@@ -138,10 +95,68 @@ const statusConfig = {
 
 import { useLocation } from "wouter";
 
+interface FactuurFormState {
+  id?: string;
+  nummer: string;
+  klant: string;
+  bedrag: string;
+  datum: string;
+  vervaldatum: string;
+  status: Factuur["status"];
+  items: string;
+}
+
+const formatDate = (date: Date) => date.toISOString().split("T")[0];
+
+const addDays = (dateString: string, days: number) => {
+  const base = new Date(dateString);
+  base.setDate(base.getDate() + days);
+  return formatDate(base);
+};
+
+const nextFactuurNummer = (existing: Factuur[]) => {
+  const year = new Date().getFullYear();
+  const prefix = `FAC-${year}-`;
+  const count = existing.filter((factuur) => factuur.nummer.startsWith(prefix)).length + 1;
+  return `${prefix}${String(count).padStart(3, "0")}`;
+};
+
+const toFormState = (factuur: Factuur | null, existing: Factuur[]): FactuurFormState => {
+  const today = formatDate(new Date());
+  const defaultDueDate = addDays(today, 14);
+  if (!factuur) {
+    return {
+      nummer: nextFactuurNummer(existing),
+      klant: "",
+      bedrag: "",
+      datum: today,
+      vervaldatum: defaultDueDate,
+      status: "concept",
+      items: "1",
+    };
+  }
+
+  return {
+    id: factuur.id,
+    nummer: factuur.nummer,
+    klant: factuur.klant,
+    bedrag: String(factuur.bedrag),
+    datum: factuur.datum,
+    vervaldatum: factuur.vervaldatum,
+    status: factuur.status,
+    items: String(factuur.items),
+  };
+};
+
 export default function Facturen() {
+  const [facturen, setFacturen] = useStoredState<Factuur[]>("facturen", defaultFacturen);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterStatus, setFilterStatus] = useState<string>("all");
-  const [, navigate] = useLocation();
+  const [formOpen, setFormOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [activeFactuur, setActiveFactuur] = useState<Factuur | null>(null);
+  const [formState, setFormState] = useState<FactuurFormState>(() => toFormState(null, facturen));
+  const [location, navigate] = useLocation();
 
   const filteredFacturen = facturen.filter((factuur) => {
     const matchesSearch =
@@ -163,6 +178,132 @@ export default function Facturen() {
     .filter((f) => f.status === "overtijd")
     .reduce((sum, f) => sum + f.bedrag, 0);
 
+  useEffect(() => {
+    const params = new URLSearchParams(location.split("?")[1] || "");
+    if (params.get("followup") === "1") {
+      setFilterStatus("openstaand");
+      toast.success("Opvolgactie klaar", { description: "Openstaande facturen zijn gefilterd." });
+      navigate("/facturen");
+    }
+  }, [location]);
+
+  const openCreateDialog = () => {
+    setActiveFactuur(null);
+    setFormState(toFormState(null, facturen));
+    setFormOpen(true);
+  };
+
+  const openEditDialog = (factuur: Factuur) => {
+    setActiveFactuur(factuur);
+    setFormState(toFormState(factuur, facturen));
+    setFormOpen(true);
+  };
+
+  const openDetailDialog = (factuur: Factuur) => {
+    setActiveFactuur(factuur);
+    setDetailOpen(true);
+  };
+
+  const handleFormSubmit = () => {
+    if (!formState.klant.trim()) {
+      toast.error("Klantnaam ontbreekt", { description: "Vul een klantnaam in." });
+      return;
+    }
+    const bedrag = Number(formState.bedrag);
+    const items = Number(formState.items);
+    if (!Number.isFinite(bedrag) || bedrag <= 0) {
+      toast.error("Bedrag is ongeldig", { description: "Voer een geldig bedrag in." });
+      return;
+    }
+    if (!Number.isFinite(items) || items <= 0) {
+      toast.error("Aantal items is ongeldig", { description: "Voer een geldig aantal items in." });
+      return;
+    }
+
+    const payload: Factuur = {
+      id: formState.id ?? nanoid(8),
+      nummer: formState.nummer.trim(),
+      klant: formState.klant.trim(),
+      bedrag,
+      datum: formState.datum,
+      vervaldatum: formState.vervaldatum,
+      status: formState.status,
+      items,
+    };
+
+    if (activeFactuur) {
+      setFacturen((prev) => prev.map((factuur) => (factuur.id === payload.id ? payload : factuur)));
+      toast.success("Factuur bijgewerkt", { description: `${payload.nummer} is aangepast.` });
+    } else {
+      setFacturen((prev) => [payload, ...prev]);
+      toast.success("Factuur toegevoegd", { description: `${payload.nummer} is aangemaakt.` });
+    }
+    setFormOpen(false);
+    setActiveFactuur(payload);
+  };
+
+  const handleExport = () => {
+    exportToCsv(
+      "facturen.csv",
+      filteredFacturen.map((factuur) => ({
+        nummer: factuur.nummer,
+        klant: factuur.klant,
+        bedrag: factuur.bedrag,
+        datum: factuur.datum,
+        vervaldatum: factuur.vervaldatum,
+        status: factuur.status,
+        items: factuur.items,
+      }))
+    );
+    toast.success("Export gestart", { description: "Je facturenbestand is gedownload." });
+  };
+
+  const handleReminder = (factuur: Factuur) => {
+    const newDueDate = addDays(factuur.vervaldatum, 7);
+    setFacturen((prev) =>
+      prev.map((item) =>
+        item.id === factuur.id
+          ? { ...item, vervaldatum: newDueDate, status: item.status === "concept" ? "openstaand" : item.status }
+          : item
+      )
+    );
+    toast.success("Herinnering verzonden", {
+      description: `Nieuwe vervaldatum: ${new Date(newDueDate).toLocaleDateString("nl-NL")}`,
+    });
+  };
+
+  const handleDownload = (factuur: Factuur) => {
+    openPrintableDocument(
+      `Factuur ${factuur.nummer}`,
+      `
+        <h1>Factuur ${factuur.nummer}</h1>
+        <div class="muted">Klant: ${factuur.klant}</div>
+        <div class="muted">Datum: ${new Date(factuur.datum).toLocaleDateString("nl-NL")}</div>
+        <div class="muted">Vervaldatum: ${new Date(factuur.vervaldatum).toLocaleDateString("nl-NL")}</div>
+        <div class="section">
+          <h2>Overzicht</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Items</th>
+                <th>Status</th>
+                <th>Bedrag</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>${factuur.items}</td>
+                <td>${statusConfig[factuur.status].label}</td>
+                <td>€${factuur.bedrag.toLocaleString("nl-NL", { minimumFractionDigits: 2 })}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="section total">Totaal: €${factuur.bedrag.toLocaleString("nl-NL", { minimumFractionDigits: 2 })}</div>
+      `
+    );
+  };
+
   return (
     <div className="space-y-8">
       <PageHeader
@@ -170,7 +311,7 @@ export default function Facturen() {
         subtitle="Beheer je facturen en betalingen."
         rightSlot={
           <div className="flex gap-3">
-             <Button
+            <Button
               variant="outline"
               className="border-white/10 hover:bg-white/5 text-cyan-400 border-cyan-500/20 hover:border-cyan-500/50"
               onClick={() => navigate("/ai-assistant", { state: { initialPrompt: "Welke facturen moet ik vandaag opvolgen?" } })}
@@ -180,11 +321,7 @@ export default function Facturen() {
             </Button>
             <Button
               className="bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-600 hover:to-cyan-700 text-white shadow-lg glow-cyan"
-              onClick={() =>
-                toast("Nieuwe Factuur", {
-                  description: "Factuur aanmaken wordt binnenkort beschikbaar.",
-                })
-              }
+              onClick={openCreateDialog}
             >
               <Plus className="w-4 h-4 mr-2" />
               Nieuwe Factuur
@@ -301,7 +438,7 @@ export default function Facturen() {
           <Button
             variant="outline"
             className="border-white/10 hover:bg-white/5"
-            onClick={() => toast("Exporteren", { description: "Export functie wordt binnenkort beschikbaar." })}
+            onClick={handleExport}
           >
             <Download className="w-4 h-4 mr-2" />
             Export
@@ -309,14 +446,15 @@ export default function Facturen() {
         </div>
       </motion.div>
 
-      {/* Facturen Table */}
+      {/* Facturen Table / Cards */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.35 }}
       >
         <Card className="glass-card border-white/5 overflow-hidden">
-          <div className="overflow-x-auto">
+          {/* Desktop Table */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-white/5">
@@ -418,19 +556,19 @@ export default function Facturen() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end" className="glass-card border-white/10">
-                            <DropdownMenuItem onClick={() => toast("Bekijken", { description: "Factuur bekijken wordt binnenkort beschikbaar." })}>
+                            <DropdownMenuItem onClick={() => openDetailDialog(factuur)}>
                               Bekijk details
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => toast("Bewerken", { description: "Factuur bewerken wordt binnenkort beschikbaar." })}>
+                            <DropdownMenuItem onClick={() => openEditDialog(factuur)}>
                               Bewerken
                             </DropdownMenuItem>
                             {factuur.status !== "betaald" && (
-                              <DropdownMenuItem onClick={() => toast("Herinnering", { description: "Herinnering sturen wordt binnenkort beschikbaar." })}>
+                              <DropdownMenuItem onClick={() => handleReminder(factuur)}>
                                 <Send className="w-4 h-4 mr-2" />
                                 Stuur herinnering
                               </DropdownMenuItem>
                             )}
-                            <DropdownMenuItem onClick={() => toast("Downloaden", { description: "PDF downloaden wordt binnenkort beschikbaar." })}>
+                            <DropdownMenuItem onClick={() => handleDownload(factuur)}>
                               <Download className="w-4 h-4 mr-2" />
                               Download PDF
                             </DropdownMenuItem>
@@ -443,6 +581,80 @@ export default function Facturen() {
               </tbody>
             </table>
           </div>
+
+          {/* Mobile Card View */}
+          <div className="md:hidden space-y-4 p-4">
+            {filteredFacturen.map((factuur, index) => {
+              const status = statusConfig[factuur.status];
+              const StatusIcon = status.icon;
+
+              return (
+                <motion.div
+                  key={factuur.id}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="p-2 rounded-lg bg-cyan-500/10">
+                        <FileText className="w-4 h-4 text-cyan-400" />
+                      </div>
+                      <div>
+                        <p className="font-medium">{factuur.nummer}</p>
+                        <p className="text-xs text-muted-foreground">{factuur.klant}</p>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className={cn("border-0", status.color)}>
+                      <StatusIcon className="w-3 h-3 mr-1" />
+                      {status.label}
+                    </Badge>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 text-sm">
+                    <div>
+                      <p className="text-xs text-muted-foreground">Vervaldatum</p>
+                      <p className={cn(
+                        "font-medium",
+                        factuur.status === "overtijd" && "text-red-400"
+                      )}>
+                        {new Date(factuur.vervaldatum).toLocaleDateString("nl-NL")}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-xs text-muted-foreground">Bedrag</p>
+                      <p className={cn(
+                        "font-semibold font-mono",
+                        factuur.status === "betaald" ? "text-cyan-400" : "text-foreground"
+                      )}>
+                        €{factuur.bedrag.toLocaleString("nl-NL", { minimumFractionDigits: 2 })}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-3 border-t border-white/5">
+                    <div className="text-xs text-muted-foreground">
+                      {factuur.items} items
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-8">
+                          <MoreHorizontal className="w-4 h-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="glass-card border-white/10">
+                        <DropdownMenuItem onClick={() => openDetailDialog(factuur)}>Details</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => openEditDialog(factuur)}>Bewerken</DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleDownload(factuur)}>Download PDF</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+
           {filteredFacturen.length === 0 && (
             <div className="p-12 text-center">
               <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
@@ -451,6 +663,147 @@ export default function Facturen() {
           )}
         </Card>
       </motion.div>
+
+      <Dialog open={formOpen} onOpenChange={setFormOpen}>
+        <DialogContent className="glass-card border-white/10 sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{activeFactuur ? "Factuur bewerken" : "Nieuwe factuur"}</DialogTitle>
+            <DialogDescription>
+              Vul de belangrijkste gegevens in om de factuur op te slaan.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4">
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Factuurnummer</label>
+              <Input
+                value={formState.nummer}
+                onChange={(e) => setFormState((prev) => ({ ...prev, nummer: e.target.value }))}
+              />
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Klant</label>
+              <Input
+                value={formState.klant}
+                onChange={(e) => setFormState((prev) => ({ ...prev, klant: e.target.value }))}
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Bedrag</label>
+                <Input
+                  type="number"
+                  value={formState.bedrag}
+                  onChange={(e) => setFormState((prev) => ({ ...prev, bedrag: e.target.value }))}
+                />
+              </div>
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Items</label>
+                <Input
+                  type="number"
+                  value={formState.items}
+                  onChange={(e) => setFormState((prev) => ({ ...prev, items: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Datum</label>
+                <Input
+                  type="date"
+                  value={formState.datum}
+                  onChange={(e) => setFormState((prev) => ({ ...prev, datum: e.target.value }))}
+                />
+              </div>
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Vervaldatum</label>
+                <Input
+                  type="date"
+                  value={formState.vervaldatum}
+                  onChange={(e) => setFormState((prev) => ({ ...prev, vervaldatum: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Status</label>
+              <Select
+                value={formState.status}
+                onValueChange={(value) => setFormState((prev) => ({ ...prev, status: value as Factuur["status"] }))}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="concept">Concept</SelectItem>
+                  <SelectItem value="openstaand">Openstaand</SelectItem>
+                  <SelectItem value="overtijd">Overtijd</SelectItem>
+                  <SelectItem value="betaald">Betaald</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" className="border-white/10 hover:bg-white/5" onClick={() => setFormOpen(false)}>
+              Annuleren
+            </Button>
+            <Button className="bg-cyan-500 hover:bg-cyan-600 text-white" onClick={handleFormSubmit}>
+              Opslaan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="glass-card border-white/10 sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Factuur details</DialogTitle>
+            <DialogDescription>Bekijk de gegevens en acties voor deze factuur.</DialogDescription>
+          </DialogHeader>
+          {activeFactuur && (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Factuur</p>
+                  <p className="text-lg font-semibold">{activeFactuur.nummer}</p>
+                </div>
+                <Badge variant="outline" className={cn("border-0", statusConfig[activeFactuur.status].color)}>
+                  {statusConfig[activeFactuur.status].label}
+                </Badge>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Klant</p>
+                  <p className="font-medium">{activeFactuur.klant}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Bedrag</p>
+                  <p className="font-medium">€{activeFactuur.bedrag.toLocaleString("nl-NL", { minimumFractionDigits: 2 })}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Datum</p>
+                  <p className="font-medium">{new Date(activeFactuur.datum).toLocaleDateString("nl-NL")}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Vervaldatum</p>
+                  <p className="font-medium">{new Date(activeFactuur.vervaldatum).toLocaleDateString("nl-NL")}</p>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            {activeFactuur && (
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:justify-end">
+                <Button variant="outline" className="border-white/10 hover:bg-white/5" onClick={() => activeFactuur && handleDownload(activeFactuur)}>
+                  <Download className="w-4 h-4 mr-2" />
+                  Download PDF
+                </Button>
+                <Button className="bg-cyan-500 hover:bg-cyan-600 text-white" onClick={() => activeFactuur && openEditDialog(activeFactuur)}>
+                  Bewerken
+                </Button>
+              </div>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

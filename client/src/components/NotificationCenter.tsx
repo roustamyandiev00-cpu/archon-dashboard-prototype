@@ -52,63 +52,7 @@ const priorityColors: Record<"low" | "medium" | "high", string> = {
   high: "text-red-400"
 };
 
-// Mock notifications for demo
-const defaultNotifications: Notification[] = [
-  {
-    id: "1",
-    type: "payment",
-    title: "Betaling ontvangen",
-    description: "€3.450 van Fam. Jansen voor Renovatie Herengracht",
-    time: "5 min geleden",
-    unread: true,
-    priority: "high"
-  },
-  {
-    id: "2",
-    type: "deadline",
-    title: "Project deadline nadert",
-    description: "Renovatie Herengracht - Nog 3 dagen tot deadline",
-    time: "1 uur geleden",
-    unread: true,
-    priority: "high"
-  },
-  {
-    id: "3",
-    type: "success",
-    title: "Offerte geaccepteerd",
-    description: "Tech Solutions heeft je offerte voor Nieuwbouw Kantoor geaccepteerd",
-    time: "2 uur geleden",
-    unread: true,
-    priority: "medium"
-  },
-  {
-    id: "4",
-    type: "task",
-    title: "Nieuwe taak toegewezen",
-    description: "Materialen bestellen voor Badkamer Utrecht project",
-    time: "4 uur geleden",
-    unread: false,
-    priority: "medium"
-  },
-  {
-    id: "5",
-    type: "info",
-    title: "Wekelijkse samenvatting",
-    description: "Je hebt deze week 5 nieuwe projecten toegevoegd en €12.500 aan facturen verstuurd",
-    time: "1 dag geleden",
-    unread: false,
-    priority: "low"
-  },
-  {
-    id: "6",
-    type: "warning",
-    title: "Factuur bijna verlopen",
-    description: "Factuur #INV-2024-045 (Mvr. de Vries) vervalt over 2 dagen",
-    time: "1 dag geleden",
-    unread: false,
-    priority: "high"
-  }
-];
+const defaultNotifications: Notification[] = [];
 
 export function NotificationCenter({
   initialNotifications = defaultNotifications,

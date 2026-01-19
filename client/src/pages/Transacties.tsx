@@ -5,7 +5,7 @@
  * - Income/expense visualization
  */
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Search,
@@ -27,6 +27,7 @@ import {
   TrendingUp,
   TrendingDown,
 } from "lucide-react";
+import { nanoid } from "nanoid";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,6 +48,17 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import PageHeader from "@/components/PageHeader";
+import { exportToCsv } from "@/lib/file";
+import { useStoredState } from "@/hooks/useStoredState";
+import { useLocation } from "wouter";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface Transactie {
   id: string;
@@ -56,121 +68,50 @@ interface Transactie {
   type: "inkomst" | "uitgave";
   categorie: string;
   datum: string;
-  icon: React.ReactNode;
-  iconBg: string;
+  iconKey: string;
 }
 
-const transacties: Transactie[] = [
+const defaultTransacties: Transactie[] = [
   {
-    id: "1",
-    titel: "Fam. Jansen",
-    beschrijving: "Betaling Factuur #2024-001",
-    bedrag: 2500,
+    id: "TRX-001",
+    titel: "Betaling Factuur #2024-001",
+    beschrijving: "Inkomende betaling De Vries Bouwgroep",
+    bedrag: 25500,
     type: "inkomst",
     categorie: "Facturen",
-    datum: "2024-01-16",
-    icon: <Banknote className="w-4 h-4" />,
-    iconBg: "bg-cyan-500/20 text-cyan-400",
+    datum: "2024-01-20",
+    iconKey: "banknote"
   },
   {
-    id: "2",
-    titel: "Bouwmaat Amsterdam",
-    beschrijving: "Materialen - Project Jansen",
-    bedrag: 450.50,
-    type: "uitgave",
-    categorie: "Materialen",
-    datum: "2024-01-16",
-    icon: <Building2 className="w-4 h-4" />,
-    iconBg: "bg-blue-500/20 text-blue-400",
-  },
-  {
-    id: "3",
-    titel: "Shell Station",
-    beschrijving: "Brandstof - Bedrijfswagen",
-    bedrag: 85.20,
+    id: "TRX-002",
+    titel: "Brandstof Mercedes Sprinter",
+    beschrijving: "Tanken Shell Station",
+    bedrag: 125.50,
     type: "uitgave",
     categorie: "Brandstof",
-    datum: "2024-01-15",
-    icon: <Fuel className="w-4 h-4" />,
-    iconBg: "bg-orange-500/20 text-orange-400",
+    datum: "2024-01-22",
+    iconKey: "fuel"
   },
   {
-    id: "4",
-    titel: "Fam. de Vries",
-    beschrijving: "Aanbetaling Project",
-    bedrag: 1500,
-    type: "inkomst",
-    categorie: "Facturen",
-    datum: "2024-01-15",
-    icon: <Home className="w-4 h-4" />,
-    iconBg: "bg-cyan-500/20 text-cyan-400",
-  },
-  {
-    id: "5",
-    titel: "Gamma Bouwmarkt",
-    beschrijving: "Gereedschap",
-    bedrag: 129.95,
-    type: "uitgave",
-    categorie: "Gereedschap",
-    datum: "2024-01-14",
-    icon: <Wrench className="w-4 h-4" />,
-    iconBg: "bg-purple-500/20 text-purple-400",
-  },
-  {
-    id: "6",
-    titel: "Praxis",
-    beschrijving: "Verf en afwerking",
-    bedrag: 234.80,
+    id: "TRX-003",
+    titel: "Bouwmaat Materialen",
+    beschrijving: "Inkoop hout en bevestigingsmateriaal",
+    bedrag: 450.00,
     type: "uitgave",
     categorie: "Materialen",
-    datum: "2024-01-14",
-    icon: <ShoppingCart className="w-4 h-4" />,
-    iconBg: "bg-pink-500/20 text-pink-400",
+    datum: new Date().toISOString().split("T")[0],
+    iconKey: "cart"
   },
   {
-    id: "7",
-    titel: "De Vries Bouw B.V.",
-    beschrijving: "Betaling Factuur #2024-002",
-    bedrag: 8750,
-    type: "inkomst",
-    categorie: "Facturen",
-    datum: "2024-01-13",
-    icon: <Banknote className="w-4 h-4" />,
-    iconBg: "bg-cyan-500/20 text-cyan-400",
-  },
-  {
-    id: "8",
-    titel: "Lease Plan",
-    beschrijving: "Maandelijkse lease - Bedrijfswagen",
-    bedrag: 650,
-    type: "uitgave",
-    categorie: "Voertuigen",
-    datum: "2024-01-12",
-    icon: <Car className="w-4 h-4" />,
-    iconBg: "bg-cyan-500/20 text-cyan-400",
-  },
-  {
-    id: "9",
-    titel: "Eneco",
-    beschrijving: "Elektriciteit werkplaats",
-    bedrag: 189.50,
+    id: "TRX-004",
+    titel: "Abonnement Software",
+    beschrijving: "Maandelijkse kosten Archon",
+    bedrag: 45.00,
     type: "uitgave",
     categorie: "Utilities",
-    datum: "2024-01-10",
-    icon: <Zap className="w-4 h-4" />,
-    iconBg: "bg-yellow-500/20 text-yellow-400",
-  },
-  {
-    id: "10",
-    titel: "Visser Renovaties",
-    beschrijving: "Betaling Factuur #2024-006",
-    bedrag: 12500,
-    type: "inkomst",
-    categorie: "Facturen",
-    datum: "2024-01-10",
-    icon: <Banknote className="w-4 h-4" />,
-    iconBg: "bg-cyan-500/20 text-cyan-400",
-  },
+    datum: new Date().toISOString().split("T")[0],
+    iconKey: "zap"
+  }
 ];
 
 const categorieën = [
@@ -183,11 +124,75 @@ const categorieën = [
   "Utilities",
 ];
 
+const iconMap = {
+  banknote: Banknote,
+  building: Building2,
+  fuel: Fuel,
+  home: Home,
+  wrench: Wrench,
+  cart: ShoppingCart,
+  car: Car,
+  zap: Zap,
+};
+
+const categoryStyleMap: Record<string, string> = {
+  Facturen: "bg-cyan-500/20 text-cyan-400",
+  Materialen: "bg-blue-500/20 text-blue-400",
+  Brandstof: "bg-orange-500/20 text-orange-400",
+  Gereedschap: "bg-purple-500/20 text-purple-400",
+  Voertuigen: "bg-cyan-500/20 text-cyan-400",
+  Utilities: "bg-yellow-500/20 text-yellow-400",
+};
+
+interface TransactieFormState {
+  id?: string;
+  titel: string;
+  beschrijving: string;
+  bedrag: string;
+  type: Transactie["type"];
+  categorie: string;
+  datum: string;
+}
+
 export default function Transacties() {
+  const [transacties, setTransacties] = useStoredState<Transactie[]>("transacties", defaultTransacties);
   const [searchQuery, setSearchQuery] = useState("");
   const [filterType, setFilterType] = useState<"all" | "inkomst" | "uitgave">("all");
   const [filterCategorie, setFilterCategorie] = useState("Alle categorieën");
   const [filterPeriode, setFilterPeriode] = useState("deze-maand");
+  const [formOpen, setFormOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [activeTransactie, setActiveTransactie] = useState<Transactie | null>(null);
+  const [formState, setFormState] = useState<TransactieFormState>({
+    titel: "",
+    beschrijving: "",
+    bedrag: "",
+    type: "inkomst",
+    categorie: "Facturen",
+    datum: new Date().toISOString().split("T")[0],
+  });
+  const [location, navigate] = useLocation();
+
+  const matchesPeriod = (dateString: string) => {
+    const date = new Date(dateString);
+    const now = new Date();
+    switch (filterPeriode) {
+      case "deze-maand":
+        return date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+      case "vorige-maand": {
+        const prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        return date.getMonth() === prev.getMonth() && date.getFullYear() === prev.getFullYear();
+      }
+      case "dit-kwartaal": {
+        const quarter = Math.floor(now.getMonth() / 3);
+        return Math.floor(date.getMonth() / 3) === quarter && date.getFullYear() === now.getFullYear();
+      }
+      case "dit-jaar":
+        return date.getFullYear() === now.getFullYear();
+      default:
+        return true;
+    }
+  };
 
   const filteredTransacties = transacties.filter((transactie) => {
     const matchesSearch =
@@ -196,7 +201,8 @@ export default function Transacties() {
     const matchesType = filterType === "all" || transactie.type === filterType;
     const matchesCategorie =
       filterCategorie === "Alle categorieën" || transactie.categorie === filterCategorie;
-    return matchesSearch && matchesType && matchesCategorie;
+    const matchesPeriodFilter = matchesPeriod(transactie.datum);
+    return matchesSearch && matchesType && matchesCategorie && matchesPeriodFilter;
   });
 
   const totaalInkomsten = transacties
@@ -238,6 +244,117 @@ export default function Transacties() {
     }
   };
 
+  const openCreateDialog = () => {
+    setActiveTransactie(null);
+    setFormState({
+      titel: "",
+      beschrijving: "",
+      bedrag: "",
+      type: "inkomst",
+      categorie: "Facturen",
+      datum: new Date().toISOString().split("T")[0],
+    });
+    setFormOpen(true);
+  };
+
+  const openEditDialog = (transactie: Transactie) => {
+    setActiveTransactie(transactie);
+    setFormState({
+      id: transactie.id,
+      titel: transactie.titel,
+      beschrijving: transactie.beschrijving,
+      bedrag: String(transactie.bedrag),
+      type: transactie.type,
+      categorie: transactie.categorie,
+      datum: transactie.datum,
+    });
+    setFormOpen(true);
+  };
+
+  const openDetailDialog = (transactie: Transactie) => {
+    setActiveTransactie(transactie);
+    setDetailOpen(true);
+  };
+
+  const resolveIconKey = (categorie: string, type: Transactie["type"]) => {
+    if (categorie === "Facturen") return "banknote";
+    if (categorie === "Materialen") return "building";
+    if (categorie === "Brandstof") return "fuel";
+    if (categorie === "Gereedschap") return "wrench";
+    if (categorie === "Voertuigen") return "car";
+    if (categorie === "Utilities") return "zap";
+    return type === "inkomst" ? "banknote" : "cart";
+  };
+
+  const handleFormSubmit = () => {
+    if (!formState.titel.trim()) {
+      toast.error("Titel ontbreekt", { description: "Geef de transactie een titel." });
+      return;
+    }
+    const bedrag = Number(formState.bedrag);
+    if (!Number.isFinite(bedrag) || bedrag <= 0) {
+      toast.error("Bedrag is ongeldig", { description: "Voer een geldig bedrag in." });
+      return;
+    }
+
+    const payload: Transactie = {
+      id: formState.id ?? nanoid(8),
+      titel: formState.titel.trim(),
+      beschrijving: formState.beschrijving.trim(),
+      bedrag,
+      type: formState.type,
+      categorie: formState.categorie,
+      datum: formState.datum,
+      iconKey: resolveIconKey(formState.categorie, formState.type),
+    };
+
+    if (activeTransactie) {
+      setTransacties((prev) => prev.map((item) => (item.id === payload.id ? payload : item)));
+      toast.success("Transactie bijgewerkt", { description: `${payload.titel} is aangepast.` });
+    } else {
+      setTransacties((prev) => [payload, ...prev]);
+      toast.success("Transactie toegevoegd", { description: `${payload.titel} is toegevoegd.` });
+    }
+    setFormOpen(false);
+    setActiveTransactie(payload);
+  };
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.split("?")[1] || "");
+    if (params.get("new") === "1") {
+      openCreateDialog();
+      const typeParam = params.get("type");
+      if (typeParam === "inkomst" || typeParam === "uitgave") {
+        setFormState((prev) => ({ ...prev, type: typeParam }));
+      }
+      const categorieParam = params.get("categorie");
+      if (categorieParam) {
+        setFormState((prev) => ({ ...prev, categorie: categorieParam }));
+      }
+      navigate("/transacties");
+    }
+  }, [location]);
+
+  const handleDelete = (transactie: Transactie) => {
+    setTransacties((prev) => prev.filter((item) => item.id !== transactie.id));
+    toast.success("Transactie verwijderd", { description: `${transactie.titel} is verwijderd.` });
+  };
+
+  const handleExport = () => {
+    exportToCsv(
+      "transacties.csv",
+      filteredTransacties.map((transactie) => ({
+        titel: transactie.titel,
+        beschrijving: transactie.beschrijving,
+        bedrag: transactie.bedrag,
+        type: transactie.type,
+        categorie: transactie.categorie,
+        datum: transactie.datum,
+      }))
+    );
+    toast.success("Export gestart", { description: "Je transactiebestand is gedownload." });
+  };
+
   return (
     <div className="space-y-8">
       <PageHeader
@@ -246,11 +363,7 @@ export default function Transacties() {
         rightSlot={
           <Button
             className="bg-gradient-to-r from-cyan-500 to-cyan-600 hover:from-cyan-600 hover:to-cyan-700 text-white shadow-lg glow-cyan"
-            onClick={() =>
-              toast("Nieuwe Transactie", {
-                description: "Transactie toevoegen wordt binnenkort beschikbaar.",
-              })
-            }
+            onClick={openCreateDialog}
           >
             <Plus className="w-4 h-4 mr-2" />
             Nieuwe Transactie
@@ -405,7 +518,7 @@ export default function Transacties() {
           <Button
             variant="outline"
             className="border-white/10 hover:bg-white/5"
-            onClick={() => toast("Exporteren", { description: "Export functie wordt binnenkort beschikbaar." })}
+            onClick={handleExport}
           >
             <Download className="w-4 h-4 mr-2" />
             Export
@@ -432,61 +545,68 @@ export default function Transacties() {
                 </div>
                 <div className="space-y-3">
                   {dayTransacties.map((transactie, index) => (
-                    <motion.div
-                      key={transactie.id}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.4 + groupIndex * 0.1 + index * 0.05 }}
-                      className="flex items-center gap-4 p-4 rounded-xl hover:bg-white/5 transition-colors group"
-                    >
-                      <div className={cn("p-2.5 rounded-xl", transactie.iconBg)}>
-                        {transactie.icon}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium truncate">{transactie.titel}</p>
-                          <Badge variant="outline" className="border-0 bg-white/5 text-xs hidden sm:inline-flex">
-                            {transactie.categorie}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground truncate">
-                          {transactie.beschrijving}
-                        </p>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className={cn(
-                          "font-semibold font-mono",
-                          transactie.type === "inkomst" ? "text-cyan-400" : "text-foreground"
-                        )}>
-                          {transactie.type === "inkomst" ? "+" : "-"}€{transactie.bedrag.toLocaleString("nl-NL", { minimumFractionDigits: 2 })}
-                        </p>
-                      </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-                          >
-                            <MoreHorizontal className="w-4 h-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end" className="glass-card border-white/10">
-                          <DropdownMenuItem onClick={() => toast("Bekijken", { description: "Transactie details worden binnenkort beschikbaar." })}>
-                            Bekijk details
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => toast("Bewerken", { description: "Transactie bewerken wordt binnenkort beschikbaar." })}>
-                            Bewerken
-                          </DropdownMenuItem>
-                          <DropdownMenuItem
-                            className="text-destructive"
-                            onClick={() => toast("Verwijderen", { description: "Transactie verwijderen wordt binnenkort beschikbaar." })}
-                          >
-                            Verwijderen
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </motion.div>
+                    (() => {
+                      const Icon = iconMap[transactie.iconKey as keyof typeof iconMap] ?? Banknote;
+                      const iconBg = categoryStyleMap[transactie.categorie] ??
+                        (transactie.type === "inkomst" ? "bg-cyan-500/20 text-cyan-400" : "bg-red-500/20 text-red-400");
+                      return (
+                        <motion.div
+                          key={transactie.id}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.4 + groupIndex * 0.1 + index * 0.05 }}
+                          className="flex items-center gap-4 p-4 rounded-xl hover:bg-white/5 transition-colors group"
+                        >
+                          <div className={cn("p-2.5 rounded-xl", iconBg)}>
+                            <Icon className="w-4 h-4" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium truncate">{transactie.titel}</p>
+                              <Badge variant="outline" className="border-0 bg-white/5 text-xs hidden sm:inline-flex">
+                                {transactie.categorie}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground truncate">
+                              {transactie.beschrijving}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p className={cn(
+                              "font-semibold font-mono",
+                              transactie.type === "inkomst" ? "text-cyan-400" : "text-foreground"
+                            )}>
+                              {transactie.type === "inkomst" ? "+" : "-"}€{transactie.bedrag.toLocaleString("nl-NL", { minimumFractionDigits: 2 })}
+                            </p>
+                          </div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+                              >
+                                <MoreHorizontal className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="glass-card border-white/10">
+                              <DropdownMenuItem onClick={() => openDetailDialog(transactie)}>
+                                Bekijk details
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openEditDialog(transactie)}>
+                                Bewerken
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={() => handleDelete(transactie)}
+                              >
+                                Verwijderen
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </motion.div>
+                      );
+                    })()
                   ))}
                 </div>
               </div>
@@ -501,6 +621,151 @@ export default function Transacties() {
           </CardContent>
         </Card>
       </motion.div>
+
+      <Dialog open={formOpen} onOpenChange={setFormOpen}>
+        <DialogContent className="glass-card border-white/10 sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{activeTransactie ? "Transactie bewerken" : "Nieuwe transactie"}</DialogTitle>
+            <DialogDescription>
+              Leg inkomsten of uitgaven vast voor je administratie.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4">
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Titel</label>
+              <Input
+                value={formState.titel}
+                onChange={(e) => setFormState((prev) => ({ ...prev, titel: e.target.value }))}
+              />
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Beschrijving</label>
+              <Input
+                value={formState.beschrijving}
+                onChange={(e) => setFormState((prev) => ({ ...prev, beschrijving: e.target.value }))}
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Bedrag</label>
+                <Input
+                  type="number"
+                  value={formState.bedrag}
+                  onChange={(e) => setFormState((prev) => ({ ...prev, bedrag: e.target.value }))}
+                />
+              </div>
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Datum</label>
+                <Input
+                  type="date"
+                  value={formState.datum}
+                  onChange={(e) => setFormState((prev) => ({ ...prev, datum: e.target.value }))}
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Type</label>
+                <Select
+                  value={formState.type}
+                  onValueChange={(value) => setFormState((prev) => ({ ...prev, type: value as Transactie["type"] }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="glass-card border-white/10">
+                    <SelectItem value="inkomst">Inkomst</SelectItem>
+                    <SelectItem value="uitgave">Uitgave</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Categorie</label>
+                <Select
+                  value={formState.categorie}
+                  onValueChange={(value) => setFormState((prev) => ({ ...prev, categorie: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="glass-card border-white/10">
+                    {categorieën.filter((cat) => cat !== "Alle categorieën").map((cat) => (
+                      <SelectItem key={cat} value={cat}>
+                        {cat}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" className="border-white/10 hover:bg-white/5" onClick={() => setFormOpen(false)}>
+              Annuleren
+            </Button>
+            <Button className="bg-cyan-500 hover:bg-cyan-600 text-white" onClick={handleFormSubmit}>
+              Opslaan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="glass-card border-white/10 sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Transactie details</DialogTitle>
+            <DialogDescription>Bekijk de details van deze transactie.</DialogDescription>
+          </DialogHeader>
+          {activeTransactie && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className={cn(
+                  "p-3 rounded-xl",
+                  categoryStyleMap[activeTransactie.categorie] ??
+                  (activeTransactie.type === "inkomst" ? "bg-cyan-500/20 text-cyan-400" : "bg-red-500/20 text-red-400")
+                )}>
+                  {(() => {
+                    const Icon = iconMap[activeTransactie.iconKey as keyof typeof iconMap] ?? Banknote;
+                    return <Icon className="w-5 h-5" />;
+                  })()}
+                </div>
+                <div>
+                  <p className="text-lg font-semibold">{activeTransactie.titel}</p>
+                  <p className="text-sm text-muted-foreground">{activeTransactie.categorie}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Bedrag</p>
+                  <p className="font-medium">
+                    {activeTransactie.type === "inkomst" ? "+" : "-"}€{activeTransactie.bedrag.toLocaleString("nl-NL", { minimumFractionDigits: 2 })}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Datum</p>
+                  <p className="font-medium">{new Date(activeTransactie.datum).toLocaleDateString("nl-NL")}</p>
+                </div>
+                <div className="sm:col-span-2">
+                  <p className="text-muted-foreground">Beschrijving</p>
+                  <p className="font-medium">{activeTransactie.beschrijving}</p>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            {activeTransactie && (
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:justify-end">
+                <Button variant="outline" className="border-white/10 hover:bg-white/5" onClick={() => openEditDialog(activeTransactie)}>
+                  Bewerken
+                </Button>
+                <Button className="bg-cyan-500 hover:bg-cyan-600 text-white" onClick={() => handleDelete(activeTransactie)}>
+                  Verwijderen
+                </Button>
+              </div>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

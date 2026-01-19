@@ -88,12 +88,12 @@ export function CommandMenu() {
                     </CommandGroup>
                     <CommandSeparator />
                     <CommandGroup heading="Quick Actions">
-                        <CommandItem onSelect={() => runCommand(() => { /* TODO: Trigger new quote modal */ })}>
+                        <CommandItem onSelect={() => runCommand(() => setLocation("/offertes?new=1"))}>
                             <Plus className="mr-2 h-4 w-4" />
                             <span>Nieuwe Offerte</span>
                             <CommandShortcut>⌘N</CommandShortcut>
                         </CommandItem>
-                        <CommandItem onSelect={() => runCommand(() => { /* TODO: Trigger AI Assistant */ })}>
+                        <CommandItem onSelect={() => runCommand(() => setLocation("/ai-assistant"))}>
                             <Sparkles className="mr-2 h-4 w-4 text-cyan-400" />
                             <span>Ask AI Assistant</span>
                             <CommandShortcut>⌘I</CommandShortcut>

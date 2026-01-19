@@ -23,47 +23,58 @@ function createAssistantReply(input: string): string {
 }
 
 async function generateWithLLM(messages: { role: "user" | "assistant"; text: string }[]): Promise<string | null> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.VITE_GEMINI_API_KEY || process.env.GEMINI_API_KEY;
 
   if (!apiKey) {
     return null;
   }
 
   try {
-    const response = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({
-        model: process.env.OPENAI_MODEL || "gpt-4o-mini",
-        messages: [
-          {
-            role: "system",
-            content:
-              "Je bent ARCHON AI, een Nederlandse assistent voor bouwprofessionals. Antwoord kort, duidelijk en praktisch, in het Nederlands.",
+    const model = process.env.GEMINI_MODEL || "gemini-pro";
+    
+    // Convert messages to Gemini format
+    const contents = messages.map((message) => ({
+      role: message.role === "assistant" ? "model" : "user",
+      parts: [{ text: message.text }],
+    }));
+
+    // Add system instruction as first user message
+    const systemMessage = {
+      role: "user",
+      parts: [{ 
+        text: "Je bent ARCHON AI, een Nederlandse assistent voor bouwprofessionals. Antwoord kort, duidelijk en praktisch, in het Nederlands." 
+      }],
+    };
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [systemMessage, ...contents],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 1024,
           },
-          ...messages.map((message) => ({
-            role: message.role,
-            content: message.text,
-          })),
-        ],
-      }),
-    });
+        }),
+      }
+    );
 
     if (!response.ok) {
       return null;
     }
 
     const data = (await response.json()) as {
-      choices?: { message?: { content?: unknown } }[];
+      candidates?: { content?: { parts?: { text?: string }[] } }[];
     };
 
-    const content = data.choices?.[0]?.message?.content;
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
-    if (typeof content === "string" && content.trim().length > 0) {
-      return content;
+    if (typeof text === "string" && text.trim().length > 0) {
+      return text;
     }
 
     return null;

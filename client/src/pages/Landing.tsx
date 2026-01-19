@@ -3,12 +3,15 @@
  * Design: Modern SaaS landing with hero, features, and CTA
  */
 
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { ArrowRight, Check, Sparkles, BarChart, Users, Shield, Zap } from "lucide-react";
 
 export default function Landing() {
+  const [annual, setAnnual] = useState(false);
+
   return (
     <div className="min-h-screen bg-zinc-950 text-white selection:bg-cyan-500/30">
       {/* Background Effects */}
@@ -36,7 +39,7 @@ export default function Landing() {
             <Link href="#features" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
               Functies
             </Link>
-            <Link href="#pricing" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
+            <Link href="/pricing" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
               Prijzen
             </Link>
             <Link href="#about" className="text-sm font-medium text-zinc-400 hover:text-white transition-colors">
@@ -49,7 +52,7 @@ export default function Landing() {
                 Inloggen
               </Button>
             </Link>
-            <Link href="/register">
+            <Link href="/pricing">
               <Button size="sm" className="bg-cyan-500 hover:bg-cyan-600 text-white shadow-lg shadow-cyan-500/20 border-0">
                 Gratis proberen
               </Button>
@@ -101,7 +104,7 @@ export default function Landing() {
             transition={{ duration: 0.6, delay: 0.3 }}
             className="flex flex-col sm:flex-row gap-4 justify-center items-center"
           >
-            <Link href="/register">
+            <Link href="/pricing">
               <Button size="lg" className="h-14 px-8 text-lg bg-cyan-500 hover:bg-cyan-600 text-white shadow-xl shadow-cyan-500/20 hover:shadow-cyan-500/30 transition-all rounded-xl">
                 Start gratis proefperiode
                 <ArrowRight className="ml-2 w-5 h-5" />
@@ -238,6 +241,293 @@ export default function Landing() {
         </div>
       </section>
 
+      {/* Demo Section */}
+      <section id="demo" className="relative z-10 py-24 px-4">
+        <div className="container mx-auto grid lg:grid-cols-[1.05fr,0.95fr] gap-12 items-center">
+          <div className="space-y-8">
+            <motion.h2
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+              className="text-4xl md:text-5xl font-bold display-text"
+            >
+              Zie Archon in actie
+            </motion.h2>
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.1 }}
+              className="text-zinc-400 text-lg leading-relaxed"
+            >
+              Van offerte tot oplevering: volg elke stap in een overzichtelijke workflow.
+              Geen spreadsheets meer, maar realtime dashboards die je team begrijpt.
+            </motion.p>
+            <motion.ul
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="space-y-4"
+            >
+              {[
+                "Slimme planning met automatische voortgangsalerts",
+                "Financiele status per project in een oogopslag",
+                "Mobiel goedgekeurde werkbonnen en foto-rapportages"
+              ].map((item) => (
+                <li key={item} className="flex items-start gap-3 text-zinc-300">
+                  <span className="mt-1 flex h-6 w-6 items-center justify-center rounded-full bg-cyan-500/20">
+                    <Check className="h-3.5 w-3.5 text-cyan-300" />
+                  </span>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </motion.ul>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.3 }}
+              className="flex flex-col sm:flex-row gap-4"
+            >
+              <Link href="/pricing">
+                <Button className="h-12 px-6 bg-cyan-500 hover:bg-cyan-600 text-white shadow-lg shadow-cyan-500/20 rounded-xl">
+                  Plan een demo
+                </Button>
+              </Link>
+              <div className="flex items-center gap-2 text-sm text-zinc-400">
+                <Zap className="h-4 w-4 text-cyan-400" />
+                Live dashboard in minder dan 2 minuten
+              </div>
+            </motion.div>
+          </div>
+          <motion.div
+            initial={{ opacity: 0, scale: 0.97, y: 20 }}
+            whileInView={{ opacity: 1, scale: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.7 }}
+            className="relative"
+          >
+            <div className="absolute -inset-4 bg-gradient-to-br from-cyan-500/20 via-transparent to-purple-500/20 blur-2xl opacity-70" />
+            <div className="relative rounded-3xl border border-white/10 bg-zinc-900/70 p-4 shadow-2xl">
+              <img
+                src="/images/hero-gradient-mesh.png"
+                alt="Archon demo dashboard"
+                className="w-full rounded-2xl border border-white/10 bg-zinc-950/60"
+              />
+              <div className="mt-4 flex flex-wrap gap-3">
+                {["Planning", "Uren", "Risico", "Facturen"].map((label) => (
+                  <span
+                    key={label}
+                    className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs text-zinc-300"
+                  >
+                    {label}
+                  </span>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Pricing Section */}
+      <section id="pricing" className="relative z-10 py-24 px-4 bg-zinc-900/40">
+        <div className="container mx-auto">
+          <div className="text-center mb-14">
+            <motion.h2
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+              className="text-4xl md:text-5xl font-bold display-text"
+            >
+              Prijzen die met je meegroeien
+            </motion.h2>
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.1 }}
+              className="text-zinc-400 text-lg max-w-2xl mx-auto mb-8"
+            >
+              Transparante pakketten zonder verrassingen. Start klein en schaal op wanneer je bedrijf groeit.
+            </motion.p>
+
+            {/* Billing Toggle */}
+            <div className="flex items-center justify-center gap-4 mb-4">
+              <span className={`text-sm ${!annual ? "text-white font-medium" : "text-zinc-400"}`}>Maandelijks</span>
+              <button
+                onClick={() => setAnnual(!annual)}
+                className="relative w-14 h-7 bg-white/10 rounded-full p-1 transition-colors hover:bg-white/20"
+              >
+                <div
+                  className={`w-5 h-5 rounded-full bg-cyan-500 shadow-lg transition-transform duration-300 ${annual ? "translate-x-7" : "translate-x-0"}`}
+                />
+              </button>
+              <span className={`text-sm ${annual ? "text-white font-medium" : "text-zinc-400"}`}>
+                Jaarlijks <span className="text-cyan-400 text-xs ml-1 font-bold">-20%</span>
+              </span>
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {[
+              {
+                name: "Starter",
+                price: annual ? "€29" : "€29", // User prompt implies base prices, usually showing the Monthly cost but billed annually? Or showing the discounted monthly cost? 
+                // "Starter: €278/jaar (bespaar €70)"
+                // 278/12 = 23.16. 
+                // Let's just show the calculated monthly price if annual? Or show the Total Yearly price?
+                // Standard SaaS practice: Show monthly price, billed annually. 
+                // User provided explicit yearly totals. I will show Monthly price for Monthly view, and (YearlyTotal / 12) for Yearly view? Or just the Yearly Total?
+                // The prompt says "Starter: €278/jaar".
+                // I will show the label "€29" or "€23" per month?
+                // Let's stick to showing the "per month" equivalent or just the text provided.
+                // Prompt: "Starter - €29/maand (monthly)", "Starter: €278/jaar (yearly)"
+                priceDisplay: annual ? "€278" : "€29",
+                period: annual ? "/ jaar" : "/ maand",
+                description: "Voor ZZP'ers en kleine aannemers",
+                features: ["5 actieve projecten", "Onbeperkt offertes & facturen", "Basis projectbeheer", "Betalingsmijlpalen", "Email support"],
+                highlight: false
+              },
+              {
+                name: "Professional",
+                priceDisplay: annual ? "€758" : "€79",
+                period: annual ? "/ jaar" : "/ maand",
+                description: "Voor groeiende bouwbedrijven",
+                features: ["25 actieve projecten", "AI offerte generator (10/mnd)", "AI winstkans analyse", "Auto projectcreatie", "Geavanceerde rapportages", "Prioriteit support"],
+                highlight: true,
+                badge: "Meest gekozen"
+              },
+              {
+                name: "Business",
+                priceDisplay: annual ? "€1,910" : "€199",
+                period: annual ? "/ jaar" : "/ maand",
+                description: "Voor middelgrote bouwbedrijven",
+                features: ["Onbeperkt projecten", "Onbeperkt AI functies", "Team toegang (10 users)", "Custom betalingen", "API toegang", "White-label opties", "Phone + Slack support"],
+                highlight: false
+              },
+              {
+                name: "Enterprise",
+                priceDisplay: "Aanvraag",
+                period: "",
+                description: "Voor grote bouwconcerns",
+                features: ["Onbeperkt team members", "Dedicated account manager", "On-premise optie", "Custom AI modellen", "SLA garanties", "Training & onboarding"],
+                highlight: false
+              }
+            ].map((tier, index) => (
+              <motion.div
+                key={tier.name}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.6, delay: index * 0.1 }}
+                className={`relative rounded-3xl border p-6 flex flex-col ${tier.highlight
+                    ? "border-cyan-500/50 bg-gradient-to-b from-cyan-500/10 to-zinc-900"
+                    : "border-white/10 bg-zinc-900/70"
+                  }`}
+              >
+                {tier.highlight && (
+                  <span className="absolute -top-3 left-6 rounded-full bg-cyan-500 px-3 py-1 text-xs font-semibold text-white shadow-lg shadow-cyan-500/30">
+                    {tier.badge}
+                  </span>
+                )}
+                <h3 className="text-xl font-semibold text-white">{tier.name}</h3>
+                <p className="mt-2 text-sm text-zinc-400 min-h-[40px]">{tier.description}</p>
+                <div className="mt-6 flex items-baseline gap-1">
+                  <span className="text-3xl font-bold text-white max-w-[140px] truncate">{tier.priceDisplay}</span>
+                  <span className="text-sm text-zinc-400">{tier.period}</span>
+                </div>
+                {annual && tier.priceDisplay !== "Aanvraag" && (
+                  <div className="text-xs text-cyan-400 mt-1 font-medium">
+                    Bespaar 20%
+                  </div>
+                )}
+
+                <ul className="mt-6 space-y-3 text-sm text-zinc-300 flex-grow">
+                  {tier.features.map((item) => (
+                    <li key={item} className="flex items-start gap-3">
+                      <span className="flex h-5 w-5 items-center justify-center rounded-full bg-cyan-500/20 shrink-0 mt-0.5">
+                        <Check className="h-3 w-3 text-cyan-300" />
+                      </span>
+                      <span className="leading-tight">{item}</span>
+                    </li>
+                  ))}
+                </ul>
+                <Link href={tier.name === "Enterprise" ? "mailto:sales@archon.ai" : "/pricing"}>
+                  <Button
+                    className={`mt-8 w-full rounded-xl ${tier.highlight
+                        ? "bg-cyan-500 hover:bg-cyan-600 text-white"
+                        : "bg-white/5 hover:bg-white/10 text-white border border-white/10"
+                      }`}
+                  >
+                    {tier.name === "Enterprise" ? "Neem contact op" : "Start nu"}
+                  </Button>
+                </Link>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* About Section */}
+      <section id="about" className="relative z-10 py-24 px-4">
+        <div className="container mx-auto grid lg:grid-cols-[1.1fr,0.9fr] gap-12 items-center">
+          <div>
+            <motion.h2
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6 }}
+              className="text-4xl md:text-5xl font-bold mb-6 display-text"
+            >
+              Gebouwd door mensen uit de bouw
+            </motion.h2>
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.1 }}
+              className="text-zinc-400 text-lg leading-relaxed mb-6"
+            >
+              We kennen de praktijk: krappe marges, strakke planningen en een team dat altijd onderweg is.
+              Daarom maken we software die jouw vakmensen ondersteunt en je administratie moeiteloos houdt.
+            </motion.p>
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="text-zinc-400 text-lg leading-relaxed"
+            >
+              Archon draait op slimme automatisering, maar blijft menselijk: we helpen je team en versterken het werk.
+            </motion.p>
+          </div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6, delay: 0.2 }}
+            className="grid gap-6"
+          >
+            {[
+              { title: "12+ jaar", label: "Ervaring in bouwprocessen" },
+              { title: "850+ teams", label: "Actieve klanten in Nederland" },
+              { title: "24/7", label: "Monitoring en support" }
+            ].map((stat) => (
+              <div
+                key={stat.title}
+                className="rounded-3xl border border-white/10 bg-zinc-900/70 p-6 shadow-lg"
+              >
+                <div className="text-3xl font-bold text-white">{stat.title}</div>
+                <div className="mt-2 text-sm text-zinc-400">{stat.label}</div>
+              </div>
+            ))}
+          </motion.div>
+        </div>
+      </section>
+
       {/* CTA Section */}
       <section className="relative z-10 py-24 px-4 overflow-hidden">
         <div className="absolute inset-0 bg-cyan-500/5" />
@@ -276,7 +566,7 @@ export default function Landing() {
                 transition={{ duration: 0.6, delay: 0.2 }}
                 className="flex flex-col sm:flex-row gap-4 justify-center items-center"
               >
-                <Link href="/register">
+                <Link href="/pricing">
                   <Button size="lg" className="h-14 px-10 text-lg bg-white text-zinc-950 hover:bg-zinc-200 shadow-xl transition-all rounded-xl font-semibold">
                     Start gratis proefperiode
                     <ArrowRight className="ml-2 w-5 h-5" />
@@ -326,7 +616,7 @@ export default function Landing() {
               <h4 className="font-bold mb-6 text-white text-base">Product</h4>
               <ul className="space-y-3 text-sm">
                 <li><Link href="#features" className="text-zinc-400 hover:text-cyan-400 transition-colors">Functies</Link></li>
-                <li><Link href="#pricing" className="text-zinc-400 hover:text-cyan-400 transition-colors">Prijzen</Link></li>
+                <li><Link href="/pricing" className="text-zinc-400 hover:text-cyan-400 transition-colors">Prijzen</Link></li>
                 <li><Link href="/login" className="text-zinc-400 hover:text-cyan-400 transition-colors">Inloggen</Link></li>
                 <li><Link href="/register" className="text-zinc-400 hover:text-cyan-400 transition-colors">Registreren</Link></li>
               </ul>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useLocation } from "wouter";
 import {
@@ -32,82 +32,14 @@ import DashboardTour from "@/components/DashboardTour";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { NotificationCenter } from "@/components/NotificationCenter";
 import { AIAssistantPanel } from "@/components/AIAssistantPanel";
+import { useStoredState } from "@/hooks/useStoredState";
+import { useAuth } from "@/contexts/AuthContext";
 import {
   CashflowChart,
   ProjectStatusChart,
   Sparkline,
   ChartContainer
 } from "@/components/EnhancedCharts";
-
-// Chart data with trends
-const cashflowData = [
-  { month: "Aug", inkomsten: 18500, uitgaven: 12000, trend: 8 },
-  { month: "Sep", inkomsten: 22000, uitgaven: 14500, trend: 12 },
-  { month: "Okt", inkomsten: 19800, uitgaven: 11200, trend: -5 },
-  { month: "Nov", inkomsten: 25600, uitgaven: 15800, trend: 15 },
-  { month: "Dec", inkomsten: 21400, uitgaven: 13200, trend: -8 },
-  { month: "Jan", inkomsten: 24800, uitgaven: 14600, trend: 10 },
-];
-
-const projectData = [
-  { name: "Herengracht", value: 75, status: "Actief" },
-  { name: "Kantoor", value: 15, status: "Planning" },
-  { name: "Badkamer", value: 95, status: "Afronding" },
-  { name: "Garage", value: 45, status: "Actief" }
-];
-
-const mockProjects = [
-  {
-    name: "Renovatie Herengracht",
-    client: "Fam. Jansen",
-    status: "Actief",
-    progress: 75,
-    deadline: "15 Apr",
-    value: "€12.450",
-    priority: "high" as const
-  },
-  {
-    name: "Nieuwbouw Kantoor",
-    client: "Tech Solutions",
-    status: "Planning",
-    progress: 15,
-    deadline: "01 Sep",
-    value: "€45.000",
-    priority: "medium" as const
-  },
-  {
-    name: "Badkamer Utrecht",
-    client: "Mvr. de Vries",
-    status: "Afronding",
-    progress: 95,
-    deadline: "28 Feb",
-    value: "€5.200",
-    priority: "high" as const
-  },
-  {
-    name: "Aanbouw Garage",
-    client: "Dhr. Bakker",
-    status: "Actief",
-    progress: 45,
-    deadline: "30 Mei",
-    value: "€8.750",
-    priority: "low" as const
-  },
-];
-
-const mockEvents = [
-  { title: "Bouwvergadering", time: "10:00", date: "Vandaag", type: "meeting", color: "cyan" },
-  { title: "Materialen levering", time: "14:30", date: "Vandaag", type: "delivery", color: "purple" },
-  { title: "Klantbezoek Fam. Bakker", time: "09:00", date: "Morgen", type: "visit", color: "blue" },
-];
-
-// Sparkline data for stat cards
-const sparklineData = {
-  revenue: [18, 22, 19, 26, 21, 25, 28],
-  outstanding: [12, 11, 10, 9, 10, 8, 9],
-  clients: [8, 9, 10, 10, 11, 11, 12],
-  costs: [7, 6, 6, 5, 5, 5, 5]
-};
 
 interface EnhancedStatCardProps {
   title: string;
@@ -203,12 +135,229 @@ function EnhancedStatCard({
   );
 }
 
+interface DashboardFactuur {
+  bedrag: number;
+  status: string;
+  datum?: string;
+}
+
+interface DashboardTransactie {
+  bedrag: number;
+  type: "inkomst" | "uitgave";
+  datum: string;
+}
+
+interface DashboardKlant {
+  id: string;
+}
+
+interface DashboardProject {
+  id: string;
+  name: string;
+  client: string;
+  status: string;
+  progress: number;
+  deadline: string;
+  budget?: number;
+}
+
+interface DashboardAppointment {
+  id: string;
+  title: string;
+  type: string;
+  date: string;
+  time: string;
+}
+
+const formatCurrency = (value: number) =>
+  new Intl.NumberFormat("nl-NL", {
+    style: "currency",
+    currency: "EUR",
+    maximumFractionDigits: 0,
+  }).format(value);
+
+const buildMonthBuckets = (count: number, timeRange: "week" | "month" | "quarter" | "year") => {
+  const buckets: { key: string; label: string; year: number; month: number }[] = [];
+  for (let i = count - 1; i >= 0; i -= 1) {
+    const date = new Date();
+    date.setDate(1);
+    date.setMonth(date.getMonth() - i);
+    const key = `${date.getFullYear()}-${date.getMonth()}`;
+    const label = date.toLocaleString("nl-NL", { month: "short" });
+    buckets.push({ key, label, year: date.getFullYear(), month: date.getMonth() });
+  }
+  // Filter buckets based on timeRange
+  if (timeRange === "week") {
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - 7);
+    return buckets.filter(b => {
+      const bucketDate = new Date(b.year, b.month, 1);
+      return bucketDate >= cutoffDate;
+    });
+  }
+  if (timeRange === "month") {
+    const cutoffDate = new Date();
+    cutoffDate.setMonth(cutoffDate.getMonth() - 1);
+    return buckets.filter(b => {
+      const bucketDate = new Date(b.year, b.month, 1);
+      return bucketDate >= cutoffDate;
+    });
+  }
+  if (timeRange === "quarter") {
+    const cutoffDate = new Date();
+    cutoffDate.setMonth(cutoffDate.getMonth() - 3);
+    return buckets.filter(b => {
+      const bucketDate = new Date(b.year, b.month, 1);
+      return bucketDate >= cutoffDate;
+    });
+  }
+  return buckets; // year shows all 6 months
+};
+
+const sumByMonth = (
+  items: { datum?: string }[],
+  months: { year: number; month: number }[],
+  valueFn: (item: { datum?: string }) => number
+) =>
+  months.map((bucket) => {
+    return items.reduce((sum, item) => {
+      if (!item.datum) {
+        return sum;
+      }
+      const parsed = new Date(item.datum);
+      if (Number.isNaN(parsed.getTime())) {
+        return sum;
+      }
+      if (parsed.getFullYear() === bucket.year && parsed.getMonth() === bucket.month) {
+        return sum + valueFn(item);
+      }
+      return sum;
+    }, 0);
+  });
+
 export default function Dashboard() {
   const [timeRange, setTimeRange] = useState<"week" | "month" | "quarter" | "year">("quarter");
   const [showAIPanel, setShowAIPanel] = useState(false);
   const isMobile = useMobile();
   const isTablet = useMediaQuery("(min-width: 768px) and (max-width: 1024px)");
   const isLargeScreen = useMediaQuery("(min-width: 1400px)");
+  const [, navigate] = useLocation();
+  const { user } = useAuth();
+
+  const [facturen] = useStoredState<DashboardFactuur[]>("facturen", []);
+  const [transacties] = useStoredState<DashboardTransactie[]>("transacties", []);
+  const [klanten] = useStoredState<DashboardKlant[]>("klanten", []);
+  const [projects] = useStoredState<DashboardProject[]>("projects", []);
+  const [appointments] = useStoredState<DashboardAppointment[]>("appointments", []);
+
+  const handleStartAI = () => {
+    setShowAIPanel(true);
+  };
+
+  const handleViewActions = () => {
+    const actionCard = document.querySelector('[data-tour="action"]');
+    actionCard?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  const handleExecuteAction = () => {
+    navigate("/facturen?followup=1");
+  };
+
+  const paidRevenue = facturen
+    .filter((factuur) => factuur.status === "betaald")
+    .reduce((sum, factuur) => sum + (Number(factuur.bedrag) || 0), 0);
+  const transactionRevenue = transacties
+    .filter((transactie) => transactie.type === "inkomst")
+    .reduce((sum, transactie) => sum + (Number(transactie.bedrag) || 0), 0);
+  const totalRevenue = paidRevenue > 0 ? paidRevenue : transactionRevenue;
+
+  const outstandingAmount = facturen
+    .filter((factuur) => factuur.status !== "betaald")
+    .reduce((sum, factuur) => sum + (Number(factuur.bedrag) || 0), 0);
+  const outstandingCount = facturen.filter((factuur) => factuur.status !== "betaald").length;
+
+  const costTotal = transacties
+    .filter((transactie) => transactie.type === "uitgave")
+    .reduce((sum, transactie) => sum + (Number(transactie.bedrag) || 0), 0);
+
+  const clientCount = klanten.length;
+
+  const monthBuckets = buildMonthBuckets(6, timeRange);
+  const incomeByMonth = sumByMonth(
+    transacties.filter((transactie) => transactie.type === "inkomst"),
+    monthBuckets,
+    (item) => Number((item as DashboardTransactie).bedrag) || 0
+  );
+  const expenseByMonth = sumByMonth(
+    transacties.filter((transactie) => transactie.type === "uitgave"),
+    monthBuckets,
+    (item) => Number((item as DashboardTransactie).bedrag) || 0
+  );
+  const outstandingByMonth = sumByMonth(
+    facturen.filter((factuur) => factuur.status !== "betaald"),
+    monthBuckets,
+    (item) => Number((item as DashboardFactuur).bedrag) || 0
+  );
+
+  const cashflowData = monthBuckets.map((bucket, index) => ({
+    month: bucket.label,
+    inkomsten: incomeByMonth[index] ?? 0,
+    uitgaven: expenseByMonth[index] ?? 0,
+  }));
+
+  const projectData = projects.map((project) => ({
+    name: project.name,
+    value: Number(project.progress) || 0,
+    status: project.status || "Onbekend",
+  }));
+
+  const visibleProjects = projects.slice(0, 4).map((project) => ({
+    name: project.name,
+    client: project.client,
+    status: project.status,
+    progress: project.progress,
+    deadline: project.deadline,
+    value: formatCurrency(Number(project.budget) || 0),
+  }));
+
+  const upcomingEvents = appointments
+    .slice()
+    .sort((a, b) => {
+      const dateA = new Date(`${a.date}T${a.time ?? "00:00"}`).getTime();
+      const dateB = new Date(`${b.date}T${b.time ?? "00:00"}`).getTime();
+      return dateA - dateB;
+    })
+    .slice(0, 3)
+    .map((event) => ({
+      title: event.title,
+      time: event.time,
+      type: event.type,
+      color:
+        event.type === "meeting"
+          ? "cyan"
+          : event.type === "deadline"
+            ? "purple"
+            : "blue",
+    }));
+
+  const hasCashflow = incomeByMonth.some((value) => value > 0) || expenseByMonth.some((value) => value > 0);
+  const hasProjects = visibleProjects.length > 0;
+  const hasEvents = upcomingEvents.length > 0;
+
+  const revenueSparkline = hasCashflow ? incomeByMonth : undefined;
+  const outstandingSparkline = outstandingByMonth.some((value) => value > 0) ? outstandingByMonth : undefined;
+  const clientsSparkline = clientCount > 0 ? Array(monthBuckets.length).fill(clientCount) : undefined;
+  const costSparkline = expenseByMonth.some((value) => value > 0) ? expenseByMonth : undefined;
+
+  const revenueChange = totalRevenue > 0 ? "+0%" : "--";
+  const outstandingChange = outstandingAmount > 0 ? "+0%" : "--";
+  const clientChange = clientCount > 0 ? "+0%" : "--";
+  const costChange = costTotal > 0 ? "+0%" : "--";
+
+  const revenueHint = totalRevenue > 0 ? "Op basis van betaalde facturen" : "Voeg je eerste factuur toe";
+  const outstandingHint = outstandingAmount > 0 ? "Openstaande bedragen volgen" : "Nog geen openstaande facturen";
+  const clientHint = clientCount > 0 ? "Actieve klanten in je account" : "Voeg je eerste klant toe";
+  const costHint = costTotal > 0 ? "Uitgaven op basis van transacties" : "Voeg je eerste uitgave toe";
 
   return (
     <div className="h-full flex flex-col gap-4 lg:gap-6 lg:overflow-hidden overflow-y-auto relative p-4 lg:p-6 grid-background-subtle">
@@ -238,6 +387,7 @@ export default function Dashboard() {
             variant="outline"
             size="sm"
             className="hidden md:flex items-center gap-2 border-white/10 hover:border-cyan-500/30"
+            onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", metaKey: true }))}
           >
             <CommandIcon className="h-4 w-4" />
             <span className="text-xs">Snelle acties</span>
@@ -260,51 +410,59 @@ export default function Dashboard() {
         </div>
       </motion.div>
 
-      {/* Stats Grid */}
+      {/* Stats Grid - Swipeable on mobile, Grid on desktop */}
       <div
-        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"
+        className="flex overflow-x-auto pb-4 -mx-4 px-4 sm:mx-0 sm:px-0 sm:pb-0 sm:grid sm:grid-cols-2 lg:grid-cols-4 gap-4 snap-x snap-mandatory no-scrollbar"
         data-tour="stats"
       >
-        <EnhancedStatCard
-          title="TOTALE OMZET"
-          value="€24.800"
-          change="+12%"
-          trend="up"
-          icon={<Euro className="w-5 h-5" />}
-          sparklineData={sparklineData.revenue}
-          delay={0}
-          aiHint="Stijgende trend - goed bezig!"
-        />
-        <EnhancedStatCard
-          title="OPENSTAANDE"
-          value="€8.750"
-          change="-8%"
-          trend="down"
-          icon={<FileText className="w-5 h-5" />}
-          sparklineData={sparklineData.outstanding}
-          delay={0.1}
-          aiHint="3 herinneringen te versturen"
-        />
-        <EnhancedStatCard
-          title="NIEUWE KLANTEN"
-          value="12"
-          change="+25%"
-          trend="up"
-          icon={<Users className="w-5 h-5" />}
-          sparklineData={sparklineData.clients}
-          delay={0.2}
-          aiHint="Top maand voor acquisitie!"
-        />
-        <EnhancedStatCard
-          title="KOSTEN"
-          value="€5.208"
-          change="-16%"
-          trend="down"
-          icon={<TrendingDown className="w-5 h-5" />}
-          sparklineData={sparklineData.costs}
-          delay={0.3}
-          aiHint="Efficiëntie verbeterd"
-        />
+        <div className="min-w-[85vw] sm:min-w-0 snap-center h-full">
+          <EnhancedStatCard
+            title="TOTALE OMZET"
+            value={formatCurrency(totalRevenue)}
+            change={revenueChange}
+            trend={totalRevenue > 0 ? "up" : "down"}
+            icon={<Euro className="w-5 h-5" />}
+            sparklineData={revenueSparkline}
+            delay={0}
+            aiHint={revenueHint}
+          />
+        </div>
+        <div className="min-w-[85vw] sm:min-w-0 snap-center h-full">
+          <EnhancedStatCard
+            title="OPENSTAANDE"
+            value={formatCurrency(outstandingAmount)}
+            change={outstandingChange}
+            trend={outstandingAmount > 0 ? "down" : "up"}
+            icon={<FileText className="w-5 h-5" />}
+            sparklineData={outstandingSparkline}
+            delay={0.1}
+            aiHint={outstandingHint}
+          />
+        </div>
+        <div className="min-w-[85vw] sm:min-w-0 snap-center h-full">
+          <EnhancedStatCard
+            title="NIEUWE KLANTEN"
+            value={String(clientCount)}
+            change={clientChange}
+            trend={clientCount > 0 ? "up" : "down"}
+            icon={<Users className="w-5 h-5" />}
+            sparklineData={clientsSparkline}
+            delay={0.2}
+            aiHint={clientHint}
+          />
+        </div>
+        <div className="min-w-[85vw] sm:min-w-0 snap-center h-full">
+          <EnhancedStatCard
+            title="KOSTEN"
+            value={formatCurrency(costTotal)}
+            change={costChange}
+            trend={costTotal > 0 ? "down" : "up"}
+            icon={<TrendingDown className="w-5 h-5" />}
+            sparklineData={costSparkline}
+            delay={0.3}
+            aiHint={costHint}
+          />
+        </div>
       </div>
 
       {/* Main Content Grid */}
@@ -327,22 +485,23 @@ export default function Dashboard() {
                 <CardContent className="p-6 relative">
                   <div className="flex justify-between items-start">
                     <div className="flex-1">
-                      <h2 className="text-2xl font-bold mb-2">
-                        Welkom terug, Gebruiker! 👋
+                      <h2 className="text-xl sm:text-2xl font-bold mb-2">
+                        Welkom terug, {user?.displayName || "Gebruiker"}! 👋
                       </h2>
-                      <p className="text-muted-foreground mb-4 max-w-2xl">
-                        Je kunt vandaag{" "}
-                        <span className="text-cyan-400 font-semibold">€3.450</span>{" "}
-                        sneller innen door{" "}
-                        <span className="text-foreground font-semibold">3 facturen</span>{" "}
-                        te versturen.
+                      <p className="text-muted-foreground mb-4 max-w-2xl text-sm sm:text-base">
+                        {outstandingCount > 0
+                          ? `Je hebt ${outstandingCount} openstaande facturen.`
+                          : "Start met je administratie."}
                       </p>
-                      <div className="flex items-center gap-3">
-                        <Button className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600">
+                      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                        <Button
+                          className="bg-gradient-to-r from-cyan-500 to-blue-500 hover:from-cyan-600 hover:to-blue-600 w-full sm:w-auto"
+                          onClick={handleStartAI}
+                        >
                           <Zap className="w-4 h-4 mr-2" />
                           Start met AI
                         </Button>
-                        <Button variant="outline" className="border-white/10">
+                        <Button variant="outline" className="border-white/10 w-full sm:w-auto" onClick={handleViewActions}>
                           Bekijk acties
                           <ArrowRight className="w-4 h-4 ml-2" />
                         </Button>
@@ -391,7 +550,13 @@ export default function Dashboard() {
                   </div>
                 }
               >
-                <CashflowChart data={cashflowData} height={300} />
+                {hasCashflow ? (
+                  <CashflowChart data={cashflowData} height={300} />
+                ) : (
+                  <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">
+                    Nog geen cashflow data. Voeg transacties of facturen toe.
+                  </div>
+                )}
               </ChartContainer>
             </motion.div>
 
@@ -406,7 +571,13 @@ export default function Dashboard() {
                 title="Project Voortgang"
                 subtitle="Voltooiingspercentage"
               >
-                <ProjectStatusChart data={projectData} height={300} />
+                {hasProjects ? (
+                  <ProjectStatusChart data={projectData} height={300} />
+                ) : (
+                  <div className="h-[300px] flex items-center justify-center text-sm text-muted-foreground">
+                    Nog geen projecten om te tonen.
+                  </div>
+                )}
               </ChartContainer>
             </motion.div>
           </div>
@@ -446,14 +617,16 @@ export default function Dashboard() {
                     </div>
                   </div>
                   <p className="text-sm text-muted-foreground mb-4">
-                    Stuur 3 herinneringen voor{" "}
-                    <span className="text-cyan-400 font-semibold">+€3.450</span>
+                    {outstandingCount > 0
+                      ? `Je hebt ${outstandingCount} openstaande facturen om op te volgen.`
+                      : "Maak je eerste factuur aan om opvolgingen te starten."}
                   </p>
                   <Button
                     className="w-full bg-gradient-to-r from-cyan-500 to-blue-500"
                     size="sm"
+                    onClick={handleExecuteAction}
                   >
-                    Uitvoeren
+                    {outstandingCount > 0 ? "Bekijk facturen" : "Maak factuur"}
                     <ArrowRight className="w-4 h-4 ml-2" />
                   </Button>
                 </CardContent>
@@ -467,60 +640,71 @@ export default function Dashboard() {
                   <FolderOpen className="w-5 h-5 text-cyan-400" />
                   Actieve Projecten
                   <Badge variant="outline" className="ml-auto">
-                    {mockProjects.length}
+                    {projects.length}
                   </Badge>
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0 overflow-y-auto flex-1">
                 <div className="divide-y divide-white/5 dark:divide-white/5 divide-slate-200">
-                  {mockProjects.map((project, i) => (
-                    <motion.div
-                      key={i}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: 0.8 + i * 0.1 }}
-                      className="p-4 hover:bg-white/5 transition-colors cursor-pointer group"
-                    >
-                      <div className="flex justify-between items-start mb-2">
-                        <div className="flex-1">
-                          <h4 className="font-medium text-sm group-hover:text-cyan-400 transition-colors">
-                            {project.name}
-                          </h4>
-                          <p className="text-xs text-muted-foreground">
-                            {project.client}
-                          </p>
+                  {projects.length === 0 ? (
+                    <div className="p-6 text-sm text-muted-foreground">
+                      Nog geen projecten. Voeg je eerste project toe om overzicht te krijgen.
+                      <div className="mt-4">
+                        <Button size="sm" onClick={() => navigate("/projecten")}>
+                          Nieuw project
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    visibleProjects.map((project, i) => (
+                      <motion.div
+                        key={project.name}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.8 + i * 0.1 }}
+                        className="p-4 hover:bg-white/5 transition-colors cursor-pointer group"
+                      >
+                        <div className="flex justify-between items-start mb-2">
+                          <div className="flex-1">
+                            <h4 className="font-medium text-sm group-hover:text-cyan-400 transition-colors">
+                              {project.name}
+                            </h4>
+                            <p className="text-xs text-muted-foreground">
+                              {project.client}
+                            </p>
+                          </div>
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "text-xs",
+                              project.status === "Actief" && "border-cyan-500/30 text-cyan-400",
+                              project.status === "Planning" && "border-yellow-500/30 text-yellow-400",
+                              project.status === "Afronding" && "border-green-500/30 text-green-400"
+                            )}
+                          >
+                            {project.status}
+                          </Badge>
                         </div>
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "text-xs",
-                            project.status === "Actief" && "border-cyan-500/30 text-cyan-400",
-                            project.status === "Planning" && "border-yellow-500/30 text-yellow-400",
-                            project.status === "Afronding" && "border-green-500/30 text-green-400"
-                          )}
-                        >
-                          {project.status}
-                        </Badge>
-                      </div>
 
-                      <div className="flex items-center justify-between text-xs text-muted-foreground mb-3">
-                        <span>Deadline: {project.deadline}</span>
-                        <span className="font-semibold text-foreground">{project.value}</span>
-                      </div>
+                        <div className="flex items-center justify-between text-xs text-muted-foreground mb-3">
+                          <span>Deadline: {project.deadline}</span>
+                          <span className="font-semibold text-foreground">{project.value}</span>
+                        </div>
 
-                      <div className="progress-bar">
-                        <motion.div
-                          className="progress-fill"
-                          initial={{ width: 0 }}
-                          animate={{ width: `${project.progress}%` }}
-                          transition={{ delay: 0.8 + i * 0.1 + 0.2, duration: 0.8 }}
-                        />
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {project.progress}% voltooid
-                      </p>
-                    </motion.div>
-                  ))}
+                        <div className="progress-bar">
+                          <motion.div
+                            className="progress-fill"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${project.progress}%` }}
+                            transition={{ delay: 0.8 + i * 0.1 + 0.2, duration: 0.8 }}
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {project.progress}% voltooid
+                        </p>
+                      </motion.div>
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -535,31 +719,44 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent className="p-0">
                 <div className="divide-y divide-white/5 dark:divide-white/5 divide-slate-200">
-                  {mockEvents.map((event, i) => (
-                    <div
-                      key={i}
-                      className="flex items-center gap-4 p-4 hover:bg-white/5 transition-colors"
-                    >
-                      <div className={cn(
-                        "w-1 h-12 rounded-full",
-                        event.color === "cyan" && "bg-cyan-500",
-                        event.color === "purple" && "bg-purple-500",
-                        event.color === "blue" && "bg-blue-500"
-                      )} />
-                      <div className="text-sm font-semibold w-14">
-                        {event.time}
+                  {!hasEvents ? (
+                    <div className="p-6 text-sm text-muted-foreground">
+                      Nog geen afspraken. Voeg je eerste afspraak toe in de agenda.
+                      <div className="mt-4">
+                        <Button size="sm" variant="outline" onClick={() => navigate("/agenda")}>
+                          Nieuwe afspraak
+                        </Button>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-medium text-sm truncate">
-                          {event.title}
-                        </p>
-                        <p className="text-xs text-muted-foreground capitalize">
-                          {event.type}
-                        </p>
-                      </div>
-                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
                     </div>
-                  ))}
+                  ) : (
+                    upcomingEvents.map((event) => (
+                      <div
+                        key={`${event.title}-${event.time}`}
+                        className="flex items-center gap-4 p-4 hover:bg-white/5 transition-colors"
+                      >
+                        <div
+                          className={cn(
+                            "w-1 h-12 rounded-full",
+                            event.color === "cyan" && "bg-cyan-500",
+                            event.color === "purple" && "bg-purple-500",
+                            event.color === "blue" && "bg-blue-500"
+                          )}
+                        />
+                        <div className="text-sm font-semibold w-14">
+                          {event.time}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium text-sm truncate">
+                            {event.title}
+                          </p>
+                          <p className="text-xs text-muted-foreground capitalize">
+                            {event.type}
+                          </p>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                      </div>
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>

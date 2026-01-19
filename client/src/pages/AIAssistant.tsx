@@ -28,64 +28,18 @@ interface ChatMessage {
   text: string;
 }
 
-const initialMessages: ChatMessage[] = [
-  {
-    id: "1",
-    role: "assistant",
-    text: "Hallo! Ik ben je AI assistent. Hoe kan ik je vandaag helpen met je administratie?",
-  },
-  {
-    id: "2",
-    role: "user",
-    text: "Kun je me helpen met het opstellen van een offerte?",
-  },
-  {
-    id: "3",
-    role: "assistant",
-    text: "Natuurlijk. Vertel me voor welke klant het is en wat de belangrijkste werkzaamheden zijn, dan help ik je met een professionele opzet.",
-  },
-];
-
 function createId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-function createAssistantReply(input: string): string {
-  const lower = input.toLowerCase();
-
-  if (lower.includes("offerte")) {
-    return "Graag. Voor welke klant is het, wat zijn de werkzaamheden (bulletpoints), planning, en je richtprijs?";
-  }
-
-  if (lower.includes("factuur") || lower.includes("facturen")) {
-    return "Zeker. Wil je (1) een nieuwe factuur opstellen, (2) openstaande facturen opvolgen, of (3) een overzicht per periode?";
-  }
-
-  if (lower.includes("klant") || lower.includes("klanten")) {
-    return "Prima. Wil je inzicht in omzet per klant, openstaande posten, of welke klanten je het best kan opvolgen deze week?";
-  }
-
-  if (lower.includes("planning") || lower.includes("agenda")) {
-    return "Ik kan je planning helpen optimaliseren. Welke projecten en deadlines spelen er, en hoeveel uren heb je beschikbaar?";
-  }
-
-  if (lower.includes("uitgave") || lower.includes("kosten") || lower.includes("cashflow")) {
-    return "Ik kan je cashflow samenvatten en grote kostenposten benoemen. Over welke periode wil je inzicht (week/maand/kwartaal)?";
-  }
-
-  if (lower.includes("btw") || lower.includes("belasting")) {
-    return "Ik kan helpen met BTW-checklist en voorbereiding. Wil je een overzicht van inkomende/uitgaande facturen en mogelijke aandachtspunten?";
-  }
-
-  if (lower.includes("opvolgen") || lower.includes("opvolging") || lower.includes("herinnering")) {
-    return "Hier is een analyse van acties voor vandaag:\n\n**Facturen:**\n• Fam. Jansen (#FAC-002) - €8.750 (Vervalt over 2 dagen) -> *Actie: Stuur vriendelijke herinnering*\n• Mvr. de Vries (#FAC-005) - €1.250 (Vervalt morgen) -> *Actie: Bel klant*\n\n**Offertes:**\n• Smit & Zonen (#OFF-004) - €22.000 (Geldig tot volgende week) -> *Actie: Check status*\n\nWil je dat ik de concept-emails voor je klaarzet?";
-  }
-
-  return "Begrepen. Kies een snelle workflow rechts (Offerte, Factuur, Klanten, Planning, Cashflow) of beschrijf je doel in één zin.";
-}
-
 export default function AIAssistant() {
-  const [messages, setMessages] = useState<ChatMessage[]>(initialMessages);
+  const [messages, setMessages] = useState<ChatMessage[]>([
+    {
+      id: "welcome",
+      role: "assistant",
+      text: "Hallo! Ik ben je AI assistent. Hoe kan ik je vandaag helpen met je administratie?",
+    },
+  ]);
   const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const [location, navigate] = useLocation();
@@ -97,15 +51,6 @@ export default function AIAssistant() {
       handleSend(state.initialPrompt);
       // Clear state to prevent re-triggering on refresh (optional, but good practice)
       window.history.replaceState({}, document.title);
-    }
-  }, []);
-
-  const companyInfo = useMemo(() => {
-    try {
-      const raw = localStorage.getItem("archon_company_info");
-      return raw ? (JSON.parse(raw) as { name?: string; email?: string; phone?: string; address?: string }) : null;
-    } catch {
-      return null;
     }
   }, []);
 
@@ -157,6 +102,15 @@ export default function AIAssistant() {
     []
   );
 
+  interface ActivityLogItem {
+    action: string;
+    time: string;
+    status: string;
+    type: "success" | "info" | "warning";
+  }
+
+  const activityLog: ActivityLogItem[] = [];
+
   const handleSend = async (value?: string) => {
     const text = (value ?? input).trim();
     if (!text || isThinking) {
@@ -200,7 +154,7 @@ export default function AIAssistant() {
     }
 
     if (!replyText) {
-      replyText = createAssistantReply(text);
+      replyText = "Ik kan nu geen antwoord ophalen. Probeer het later opnieuw.";
     }
 
     const assistantMessage: ChatMessage = {
@@ -528,33 +482,33 @@ export default function AIAssistant() {
             </CardHeader>
             <CardContent>
               <div className="space-y-0 divide-y divide-white/5">
-                {[
-                  { action: "Offerte #2024-88 Concept", time: "10 min geleden", status: "Klaar om te sturen", type: "success" },
-                  { action: "Klantanalyse Jansen", time: "1 uur geleden", status: "Afgerond", type: "info" },
-                  { action: "BTW Aangifte Check", time: "2 uur geleden", status: "3 aandachtspunten", type: "warning" },
-                  { action: "Weekplanning Concept", time: "Gisteren", status: "Klaar voor review", type: "success" },
-                  { action: "Factuur Herinnering", time: "Gisteren", status: "Verzonden (Auto)", type: "info" },
-                ].map((log, i) => (
-                  <div key={i} className="py-4 flex items-center justify-between group hover:bg-white/5 px-2 -mx-2 rounded-lg transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className={cn("w-2 h-2 rounded-full",
-                        log.type === 'success' ? "bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.5)]" :
-                          log.type === 'warning' ? "bg-orange-400 shadow-[0_0_8px_rgba(251,146,60,0.5)]" : "bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.5)]"
-                      )} />
-                      <div>
-                        <p className="text-sm font-medium text-white">{log.action}</p>
-                        <p className="text-xs text-muted-foreground">{log.time}</p>
-                      </div>
-                    </div>
-                    <span className={cn("text-xs px-2 py-1 rounded border",
-                      log.type === 'success' ? "bg-green-500/10 border-green-500/20 text-green-400" :
-                        log.type === 'warning' ? "bg-orange-500/10 border-orange-500/20 text-orange-400" :
-                          "bg-blue-500/10 border-blue-500/20 text-blue-400"
-                    )}>
-                      {log.status}
-                    </span>
+                {activityLog.length === 0 ? (
+                  <div className="py-8 text-sm text-muted-foreground text-center">
+                    Nog geen AI activiteiten om te tonen.
                   </div>
-                ))}
+                ) : (
+                  activityLog.map((log, i) => (
+                    <div key={i} className="py-4 flex items-center justify-between group hover:bg-white/5 px-2 -mx-2 rounded-lg transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className={cn("w-2 h-2 rounded-full",
+                          log.type === 'success' ? "bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.5)]" :
+                            log.type === 'warning' ? "bg-orange-400 shadow-[0_0_8px_rgba(251,146,60,0.5)]" : "bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.5)]"
+                        )} />
+                        <div>
+                          <p className="text-sm font-medium text-white">{log.action}</p>
+                          <p className="text-xs text-muted-foreground">{log.time}</p>
+                        </div>
+                      </div>
+                      <span className={cn("text-xs px-2 py-1 rounded border",
+                        log.type === 'success' ? "bg-green-500/10 border-green-500/20 text-green-400" :
+                          log.type === 'warning' ? "bg-orange-500/10 border-orange-500/20 text-orange-400" :
+                            "bg-blue-500/10 border-blue-500/20 text-blue-400"
+                      )}>
+                        {log.status}
+                      </span>
+                    </div>
+                  ))
+                )}
               </div>
               <Button variant="ghost" className="w-full mt-4 text-xs text-muted-foreground hover:text-white">
                 Bekijk volledige geschiedenis

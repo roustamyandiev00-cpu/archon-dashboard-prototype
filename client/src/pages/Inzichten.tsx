@@ -1,10 +1,61 @@
 import { motion } from "framer-motion";
-import { TrendingUp, Search, BarChart3, PieChart } from "lucide-react";
+import { BarChart3, PieChart } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { useStoredState } from "@/hooks/useStoredState";
+
+interface Transactie {
+  bedrag: number;
+  type: "inkomst" | "uitgave";
+  datum: string;
+}
 
 export default function Inzichten() {
+  const [transacties] = useStoredState<Transactie[]>("transacties", []);
+
+  const totalIncome = transacties
+    .filter((transactie) => transactie.type === "inkomst")
+    .reduce((sum, transactie) => sum + (Number(transactie.bedrag) || 0), 0);
+  const totalExpense = transacties
+    .filter((transactie) => transactie.type === "uitgave")
+    .reduce((sum, transactie) => sum + (Number(transactie.bedrag) || 0), 0);
+
+  const profitMargin =
+    totalIncome > 0 ? ((totalIncome - totalExpense) / totalIncome) * 100 : null;
+
+  const now = new Date();
+  const currentKey = `${now.getFullYear()}-${now.getMonth()}`;
+  const previous = new Date(now);
+  previous.setMonth(now.getMonth() - 1);
+  const previousKey = `${previous.getFullYear()}-${previous.getMonth()}`;
+
+  const incomeByMonth = (() => {
+    const totals: Record<string, number> = {
+      [currentKey]: 0,
+      [previousKey]: 0,
+    };
+
+    for (const transactie of transacties) {
+      if (transactie.type !== "inkomst") {
+        continue;
+      }
+      const parsed = new Date(transactie.datum);
+      if (Number.isNaN(parsed.getTime())) {
+        continue;
+      }
+      const key = `${parsed.getFullYear()}-${parsed.getMonth()}`;
+      if (key in totals) {
+        totals[key] += Number(transactie.bedrag) || 0;
+      }
+    }
+
+    return totals;
+  })();
+
+  const currentIncome = incomeByMonth[currentKey] ?? 0;
+  const previousIncome = incomeByMonth[previousKey] ?? 0;
+  const growth =
+    previousIncome > 0 ? ((currentIncome - previousIncome) / previousIncome) * 100 : null;
+
   return (
     <div className="space-y-8">
       <div className="space-y-4">
@@ -44,8 +95,10 @@ export default function Inzichten() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-cyan-400">+24%</div>
-            <p className="text-sm text-muted-foreground">Jaar-op-jaar omzetgroei</p>
+            <div className="text-3xl font-bold text-cyan-400">
+              {growth === null ? "--" : `${growth >= 0 ? "+" : ""}${growth.toFixed(1)}%`}
+            </div>
+            <p className="text-sm text-muted-foreground">Maand-op-maand omzetgroei</p>
           </CardContent>
         </Card>
 
@@ -56,8 +109,10 @@ export default function Inzichten() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-blue-400">18.5%</div>
-            <p className="text-sm text-muted-foreground">Gemiddelde marge</p>
+            <div className="text-3xl font-bold text-blue-400">
+              {profitMargin === null ? "--" : `${profitMargin.toFixed(1)}%`}
+            </div>
+            <p className="text-sm text-muted-foreground">Op basis van inkomsten en uitgaven</p>
           </CardContent>
         </Card>
 
@@ -68,8 +123,8 @@ export default function Inzichten() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold text-purple-400">4.8/5</div>
-            <p className="text-sm text-muted-foreground">Gemiddelde score</p>
+            <div className="text-3xl font-bold text-purple-400">--</div>
+            <p className="text-sm text-muted-foreground">Nog geen feedback data</p>
           </CardContent>
         </Card>
       </div>
@@ -86,7 +141,7 @@ export default function Inzichten() {
             <div className="h-[200px] flex items-center justify-center text-muted-foreground">
               <div className="text-center">
                 <BarChart3 className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p>Omzet grafiek wordt hier weergegeven</p>
+                <p>{totalIncome > 0 ? "Omzet data beschikbaar in Dashboard." : "Nog geen omzet data."}</p>
               </div>
             </div>
           </CardContent>
@@ -103,7 +158,7 @@ export default function Inzichten() {
             <div className="h-[200px] flex items-center justify-center text-muted-foreground">
               <div className="text-center">
                 <PieChart className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                <p>Categorie grafiek wordt hier weergegeven</p>
+                <p>{totalExpense > 0 ? "Uitgaven data beschikbaar in Transacties." : "Nog geen uitgaven data."}</p>
               </div>
             </div>
           </CardContent>

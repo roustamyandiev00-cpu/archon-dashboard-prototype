@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { FolderOpen, Plus, Search, Filter, Calendar, MapPin, MoreHorizontal, ArrowUpRight, Sparkles, AlertCircle, CheckCircle2, Clock, Send, Euro, Info } from "lucide-react";
+import { nanoid } from "nanoid";
 import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
@@ -10,6 +11,22 @@ import { Progress } from "../components/ui/progress";
 import { cn } from "../lib/utils";
 import { toast } from "sonner";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "../components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
+import { useStoredState } from "@/hooks/useStoredState";
 
 interface PaymentMilestone {
   id: string;
@@ -33,6 +50,7 @@ interface Project {
   image: string;
   paymentMilestones: PaymentMilestone[];
   team: any[];
+  archived?: boolean;
 }
 
 const getStatusColor = (status: string) => {
@@ -54,6 +72,8 @@ const getPaymentStatusColor = (status: string) => {
     default: return "bg-zinc-500/10 text-zinc-400";
   }
 };
+
+const defaultProjects: Project[] = [];
 
 // AI-generated insights for payment follow-ups
 const generateAIInsight = (milestone: PaymentMilestone, index: number, totalMilestones: number) => {
@@ -92,81 +112,22 @@ const generateAIInsight = (milestone: PaymentMilestone, index: number, totalMile
 };
 
 export default function Projecten() {
-  const [projects, setProjects] = useState<Project[]>([]);
+  const [projects, setProjects] = useStoredState<Project[]>("projects", defaultProjects);
   const [searchQuery, setSearchQuery] = useState("");
-
-  // Load projects from localStorage on mount
-  useEffect(() => {
-    const storedProjects = localStorage.getItem('projects');
-    if (storedProjects) {
-      setProjects(JSON.parse(storedProjects));
-    } else {
-      // Default demo data
-      setProjects([
-        {
-          id: "1",
-          name: "Renovatie Herengracht",
-          client: "Fam. Jansen",
-          location: "Amsterdam, Centrum",
-          budget: 45000,
-          spent: 32000,
-          status: "Actief",
-          progress: 75,
-          deadline: "15 Apr 2024",
-          image: "https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=800&auto=format&fit=crop&q=60",
-          team: [
-            { name: "Jan", image: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=32&h=32&fit=crop&crop=face" },
-            { name: "Piet", image: "https://images.unsplash.com/photo-1599566150163-29194dcaad36?w=32&h=32&fit=crop&crop=face" },
-          ],
-          paymentMilestones: [
-            { id: "m1", name: "Voorschot", amount: 13500, dueDate: "2024-01-15", status: "betaald", percentage: 30 },
-            { id: "m2", name: "1e Factuur - Fase 1", amount: 15750, dueDate: "2024-02-15", status: "betaald", percentage: 35 },
-            { id: "m3", name: "2e Factuur - Fase 2", amount: 15750, dueDate: "2024-03-15", status: "verzonden", percentage: 35 },
-          ]
-        },
-        {
-          id: "2",
-          name: "Nieuwbouw Kantoor Zuidas",
-          client: "Tech Solutions BV",
-          location: "Amsterdam, Zuidas",
-          budget: 125000,
-          spent: 10000,
-          status: "Planning",
-          progress: 15,
-          deadline: "01 Sep 2024",
-          image: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=800&auto=format&fit=crop&q=60",
-          team: [
-            { name: "Sarah", image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=32&h=32&fit=crop&crop=face" },
-          ],
-          paymentMilestones: [
-            { id: "m1", name: "Voorschot", amount: 37500, dueDate: "2024-02-01", status: "open", percentage: 30 },
-            { id: "m2", name: "1e Factuur - Fase 1", amount: 29166.67, dueDate: "2024-03-01", status: "open", percentage: 23 },
-            { id: "m3", name: "2e Factuur - Fase 2", amount: 29166.67, dueDate: "2024-04-01", status: "open", percentage: 23 },
-            { id: "m4", name: "3e Factuur - Afronding", amount: 29166.66, dueDate: "2024-09-01", status: "open", percentage: 24 },
-          ]
-        },
-        {
-          id: "3",
-          name: "Badkamer Renovatie",
-          client: "Mvr. de Vries",
-          location: "Utrecht, Oost",
-          budget: 12000,
-          spent: 11500,
-          status: "Afronding",
-          progress: 95,
-          deadline: "28 Feb 2024",
-          image: "https://images.unsplash.com/photo-1552321554-5fefe8c9ef14?w=800&auto=format&fit=crop&q=60",
-          team: [
-            { name: "Jan", image: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=32&h=32&fit=crop&crop=face" },
-          ],
-          paymentMilestones: [
-            { id: "m1", name: "Voorschot", amount: 3600, dueDate: "2024-01-10", status: "betaald", percentage: 30 },
-            { id: "m2", name: "1e Factuur - Voltooiing", amount: 8400, dueDate: "2024-02-28", status: "verzonden", percentage: 70 },
-          ]
-        }
-      ]);
-    }
-  }, []);
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [formOpen, setFormOpen] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [activeProject, setActiveProject] = useState<Project | null>(null);
+  const [formState, setFormState] = useState({
+    id: "",
+    name: "",
+    client: "",
+    location: "",
+    budget: "",
+    status: "Planning",
+    deadline: "",
+    image: "",
+  });
 
   const handleMilestoneStatusChange = (projectId: string, milestoneId: string, newStatus: "open" | "verzonden" | "betaald") => {
     const updatedProjects = projects.map(project => {
@@ -189,7 +150,6 @@ export default function Projecten() {
     });
 
     setProjects(updatedProjects);
-    localStorage.setItem('projects', JSON.stringify(updatedProjects));
 
     const statusMessages = {
       open: "Factuurstatus ingesteld op open",
@@ -203,10 +163,115 @@ export default function Projecten() {
     });
   };
 
-  const filteredProjects = projects.filter(project =>
-    project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    project.client.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const openCreateDialog = () => {
+    setActiveProject(null);
+    setFormState({
+      id: "",
+      name: "",
+      client: "",
+      location: "",
+      budget: "",
+      status: "Planning",
+      deadline: "",
+      image: "",
+    });
+    setFormOpen(true);
+  };
+
+  const openEditDialog = (project: Project) => {
+    setActiveProject(project);
+    setFormState({
+      id: project.id,
+      name: project.name,
+      client: project.client,
+      location: project.location,
+      budget: String(project.budget),
+      status: project.status,
+      deadline: project.deadline,
+      image: project.image,
+    });
+    setFormOpen(true);
+  };
+
+  const openDetailDialog = (project: Project) => {
+    setActiveProject(project);
+    setDetailOpen(true);
+  };
+
+  const handleArchive = (project: Project) => {
+    setProjects((prev) =>
+      prev.map((item) => (item.id === project.id ? { ...item, archived: true } : item))
+    );
+    toast.success("Project gearchiveerd", { description: `${project.name} is gearchiveerd.` });
+  };
+
+  const handleFormSubmit = () => {
+    if (!formState.name.trim()) {
+      toast.error("Projectnaam ontbreekt", { description: "Vul een projectnaam in." });
+      return;
+    }
+    if (!formState.client.trim()) {
+      toast.error("Klant ontbreekt", { description: "Vul een klantnaam in." });
+      return;
+    }
+    const budget = Number(formState.budget);
+    if (!Number.isFinite(budget) || budget <= 0) {
+      toast.error("Budget is ongeldig", { description: "Voer een geldig budget in." });
+      return;
+    }
+
+    const today = new Date();
+    const milestoneAmount = budget * 0.3;
+    const defaultMilestones = [
+      {
+        id: `m-${Date.now()}`,
+        name: "Voorschot",
+        amount: Number(milestoneAmount.toFixed(2)),
+        dueDate: new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+        status: "open" as const,
+        percentage: 30,
+      },
+    ];
+
+    const payload: Project = {
+      id: formState.id || `PRJ-${nanoid(6)}`,
+      name: formState.name.trim(),
+      client: formState.client.trim(),
+      location: formState.location.trim() || "Locatie n.t.b.",
+      budget,
+      spent: activeProject?.spent ?? 0,
+      status: formState.status,
+      progress: activeProject?.progress ?? 0,
+      deadline: formState.deadline.trim() || "n.t.b.",
+      image: formState.image.trim() || "https://images.unsplash.com/photo-1503387762-592deb58ef4e?w=800&auto=format&fit=crop&q=60",
+      paymentMilestones: activeProject?.paymentMilestones ?? defaultMilestones,
+      team: activeProject?.team ?? [],
+      archived: activeProject?.archived ?? false,
+    };
+
+    if (activeProject) {
+      setProjects((prev) => prev.map((item) => (item.id === payload.id ? payload : item)));
+      toast.success("Project bijgewerkt", { description: `${payload.name} is aangepast.` });
+    } else {
+      setProjects((prev) => [payload, ...prev]);
+      toast.success("Project toegevoegd", { description: `${payload.name} is aangemaakt.` });
+    }
+    setFormOpen(false);
+    setActiveProject(payload);
+  };
+
+  const filteredProjects = projects.filter(project => {
+    const matchesSearch =
+      project.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      project.client.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus =
+      statusFilter === "all"
+        ? !project.archived
+        : statusFilter === "Gearchiveerd"
+          ? project.archived
+          : project.status === statusFilter && !project.archived;
+    return matchesSearch && matchesStatus;
+  });
 
   return (
     <div className="space-y-8">
@@ -253,11 +318,25 @@ export default function Projecten() {
                 className="pl-10 bg-white/5 border-white/10 focus:border-[#06B6D4]/50 focus:ring-[#06B6D4]/20 w-full sm:w-[300px]"
               />
             </div>
-            <Button variant="outline" className="border-white/10 hover:bg-white/5 hidden sm:flex">
-              <Filter className="w-4 h-4 mr-2" />
-              Filter
-            </Button>
-            <Button className="bg-[#06B6D4] hover:bg-[#0891b2] text-white shadow-lg glow-cyan" onClick={() => toast("Nieuw project", { description: "Deze functie komt binnenkort beschikbaar." })}>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="border-white/10 hover:bg-white/5 hidden sm:flex">
+                  <Filter className="w-4 h-4 mr-2" />
+                  {statusFilter === "all" ? "Alle statussen" : statusFilter}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="glass-card border-white/10">
+                <DropdownMenuItem onClick={() => setStatusFilter("all")}>
+                  Alle statussen
+                </DropdownMenuItem>
+                {["Actief", "Planning", "Afronding", "Offerte", "Gepauzeerd", "Gearchiveerd"].map((status) => (
+                  <DropdownMenuItem key={status} onClick={() => setStatusFilter(status)}>
+                    {status}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button className="bg-[#06B6D4] hover:bg-[#0891b2] text-white shadow-lg glow-cyan" onClick={openCreateDialog}>
               <Plus className="w-4 h-4 mr-2" />
               Nieuw Project
             </Button>
@@ -291,9 +370,17 @@ export default function Projecten() {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end" className="glass-card border-white/10">
-                      <DropdownMenuItem>Bewerken</DropdownMenuItem>
-                      <DropdownMenuItem>Status wijzigen</DropdownMenuItem>
-                      <DropdownMenuItem className="text-red-400">Archiveren</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => openEditDialog(project)}>Bewerken</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => openEditDialog(project)}>Status wijzigen</DropdownMenuItem>
+                      {project.archived ? (
+                        <DropdownMenuItem onClick={() => setProjects((prev) => prev.map((item) => item.id === project.id ? { ...item, archived: false } : item))}>
+                          Herstellen
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem className="text-red-400" onClick={() => handleArchive(project)}>
+                          Archiveren
+                        </DropdownMenuItem>
+                      )}
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
@@ -301,6 +388,11 @@ export default function Projecten() {
                   <Badge variant="outline" className={cn("backdrop-blur-md border", getStatusColor(project.status))}>
                     {project.status}
                   </Badge>
+                  {project.archived && (
+                    <Badge variant="outline" className="bg-zinc-500/20 text-zinc-300 border-zinc-500/30 backdrop-blur-md">
+                      Gearchiveerd
+                    </Badge>
+                  )}
                   {project.paymentMilestones.length > 0 && (
                     <Badge variant="outline" className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30 backdrop-blur-md">
                       <Euro className="w-3 h-3 mr-1" />
@@ -441,7 +533,12 @@ export default function Projecten() {
                     <span className="text-muted-foreground">Budget: </span>
                     <span className="font-semibold text-foreground">€{project.budget.toLocaleString('nl-NL')}</span>
                   </div>
-                  <Button variant="ghost" size="sm" className="h-8 -mr-2 text-[#06B6D4] hover:text-[#0891b2] hover:bg-[#06B6D4]/10">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 -mr-2 text-[#06B6D4] hover:text-[#0891b2] hover:bg-[#06B6D4]/10"
+                    onClick={() => openDetailDialog(project)}
+                  >
                     Details <ArrowUpRight className="ml-1 w-3 h-3" />
                   </Button>
                 </div>
@@ -457,6 +554,138 @@ export default function Projecten() {
           <p className="text-muted-foreground">Geen projecten gevonden</p>
         </div>
       )}
+
+      <Dialog open={formOpen} onOpenChange={setFormOpen}>
+        <DialogContent className="glass-card border-white/10 sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{activeProject ? "Project bewerken" : "Nieuw project"}</DialogTitle>
+            <DialogDescription>Leg de kerngegevens van het project vast.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4">
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Projectnaam</label>
+              <Input
+                value={formState.name}
+                onChange={(e) => setFormState((prev) => ({ ...prev, name: e.target.value }))}
+              />
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Klant</label>
+              <Input
+                value={formState.client}
+                onChange={(e) => setFormState((prev) => ({ ...prev, client: e.target.value }))}
+              />
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Locatie</label>
+              <Input
+                value={formState.location}
+                onChange={(e) => setFormState((prev) => ({ ...prev, location: e.target.value }))}
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Budget</label>
+                <Input
+                  type="number"
+                  value={formState.budget}
+                  onChange={(e) => setFormState((prev) => ({ ...prev, budget: e.target.value }))}
+                />
+              </div>
+              <div className="grid gap-2">
+                <label className="text-sm font-medium">Status</label>
+                <Select
+                  value={formState.status}
+                  onValueChange={(value) => setFormState((prev) => ({ ...prev, status: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="glass-card border-white/10">
+                    {["Actief", "Planning", "Afronding", "Offerte", "Gepauzeerd"].map((status) => (
+                      <SelectItem key={status} value={status}>
+                        {status}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Deadline</label>
+              <Input
+                value={formState.deadline}
+                onChange={(e) => setFormState((prev) => ({ ...prev, deadline: e.target.value }))}
+              />
+            </div>
+            <div className="grid gap-2">
+              <label className="text-sm font-medium">Cover afbeelding (URL)</label>
+              <Input
+                value={formState.image}
+                onChange={(e) => setFormState((prev) => ({ ...prev, image: e.target.value }))}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" className="border-white/10 hover:bg-white/5" onClick={() => setFormOpen(false)}>
+              Annuleren
+            </Button>
+            <Button className="bg-[#06B6D4] hover:bg-[#0891b2] text-white" onClick={handleFormSubmit}>
+              Opslaan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
+        <DialogContent className="glass-card border-white/10 sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Projectdetails</DialogTitle>
+            <DialogDescription>Overzicht van het project en de status.</DialogDescription>
+          </DialogHeader>
+          {activeProject && (
+            <div className="space-y-4">
+              <div>
+                <p className="text-lg font-semibold">{activeProject.name}</p>
+                <p className="text-sm text-muted-foreground">{activeProject.client}</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Locatie</p>
+                  <p className="font-medium">{activeProject.location}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Status</p>
+                  <p className="font-medium">{activeProject.status}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Budget</p>
+                  <p className="font-medium">€{activeProject.budget.toLocaleString("nl-NL")}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Deadline</p>
+                  <p className="font-medium">{activeProject.deadline}</p>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            {activeProject && (
+              <div className="flex flex-col sm:flex-row gap-2 w-full sm:justify-end">
+                <Button variant="outline" className="border-white/10 hover:bg-white/5" onClick={() => openEditDialog(activeProject)}>
+                  Bewerken
+                </Button>
+                <Button
+                  className="bg-[#06B6D4] hover:bg-[#0891b2] text-white"
+                  onClick={() => activeProject && (activeProject.archived ? setProjects((prev) => prev.map((item) => item.id === activeProject.id ? { ...item, archived: false } : item)) : handleArchive(activeProject))}
+                >
+                  {activeProject.archived ? "Herstellen" : "Archiveren"}
+                </Button>
+              </div>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,5 +1,8 @@
 {
-  "projects": {},
+  "projects": {
+    "default": "archonai",
+    "firebase apps:sdkconfig web": "ai-agent-5fab0"
+  },
   "targets": {},
   "etags": {}
 }

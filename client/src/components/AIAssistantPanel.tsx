@@ -43,28 +43,12 @@ const suggestions: AISuggestion[] = [
   }
 ];
 
-// Simulated AI responses for demo
-const getAIResponse = (userMessage: string): string => {
-  const lowerMessage = userMessage.toLowerCase();
-
-  if (lowerMessage.includes("cashflow")) {
-    return "Je cashflow voor deze maand: **€24.800** totale omzet met **€14.600** aan uitgaven. Dit resulteert in een positieve cashflow van **€10.200**. Ten opzichte van vorige maand is dit een stijging van 12%.";
-  }
-
-  if (lowerMessage.includes("openstaande") || lowerMessage.includes("facturen")) {
-    return "Je hebt momenteel **3 openstaande facturen** ter waarde van **€8.750**:\n\n• Fam. Jansen - €3.450 (vervalt over 5 dagen)\n• Tech Solutions - €4.200 (vervalt over 12 dagen)\n• Mvr. de Vries - €1.100 (vervalt over 2 dagen)\n\nWil je dat ik herinneringen verstuur?";
-  }
-
-  if (lowerMessage.includes("project") && lowerMessage.includes("achter")) {
-    return "Er zijn **2 projecten** die mogelijk vertraging oplopen:\n\n**1. Renovatie Herengracht** (75% compleet)\n• Deadline: 15 April\n• Risico: Medium - Materialen levering vertraagd\n\n**2. Badkamer Utrecht** (95% compleet)\n• Deadline: 28 Februari\n• Risico: Laag - Kleine restpunten\n\nWil je een gedetailleerd statusrapport?";
-  }
-
-  if (lowerMessage.includes("planning") || lowerMessage.includes("week")) {
-    return "Je planning voor volgende week:\n\n**Maandag**\n• 10:00 - Bouwvergadering Herengracht\n• 14:30 - Materialen levering\n\n**Dinsdag**\n• 09:00 - Klantbezoek Fam. Bakker\n\n**Woensdag**\n• Hele dag - Werkzaamheden Badkamer Utrecht\n\nJe hebt nog **8 uur** beschikbare tijd. Wil je nieuwe afspraken inplannen?";
-  }
-
-  return "Ik ben je AI-assistent voor het Archon dashboard. Ik kan je helpen met:\n\n• **Financiën**: Cashflow, omzet, uitgaven\n• **Projecten**: Status, planning, deadlines\n• **Facturen**: Openstaande bedragen, herinneringen\n• **Rapportages**: Automatische analyses en inzichten\n\nWaar kan ik je mee helpen?";
-};
+const buildAssistantPayload = (history: Message[]) => ({
+  messages: history.map((message) => ({
+    role: message.role,
+    text: message.content,
+  })),
+});
 
 // Add props interface
 interface AIAssistantPanelProps {
@@ -94,78 +78,6 @@ export function AIAssistantPanel({ externalInput, onClearExternalInput }: AIAssi
     }
   }, [externalInput]);
 
-  // ... rest of state ...
-
-  // State for conversation flows
-  const [flowState, setFlowState] = useState<{
-    type: 'ADD_CUSTOMER';
-    step: 'EMAIL' | 'ADDRESS' | 'PHONE' | 'CONFIRM';
-    data: { name?: string; email?: string; address?: string; phone?: string };
-  } | null>(null);
-
-  const processMessage = (text: string): string => {
-    const lower = text.toLowerCase();
-
-    // 1. Check if we are in a flow
-    if (flowState) {
-      if (flowState.type === 'ADD_CUSTOMER') {
-        // Check for exit
-        if (['stop', 'nee', 'niks', 'niets', 'klaar', 'geen', 'laat maar'].some(w => lower.includes(w))) {
-          const finalData = flowState.data;
-          setFlowState(null);
-          return `**Klant Opgeslagen!** ✅\n\nIk heb **${finalData.name}** toegevoegd aan het systeem.\n${finalData.email ? `• Email: ${finalData.email}\n` : ''}${finalData.address ? `• Adres: ${finalData.address}\n` : ''}\nJe kunt nu direct een offerte of factuur aanmaken.`;
-        }
-
-        const newData = { ...flowState.data };
-
-        // Handle steps
-        if (flowState.step === 'EMAIL') {
-          // Simple validation or just accept input
-          newData.email = text;
-          setFlowState({ ...flowState, step: 'ADDRESS', data: newData });
-          return `Oké, e-mailadres **${text}** genoteerd. 📧\n\nWat is het adres?`;
-        }
-
-        if (flowState.step === 'ADDRESS') {
-          newData.address = text;
-          setFlowState({ ...flowState, step: 'PHONE', data: newData });
-          return `Adres toegevoegd. 🏠\n\nWat is het telefoonnummer? (of zeg 'niks' om af te ronden)`;
-        }
-
-        if (flowState.step === 'PHONE') {
-          newData.phone = text;
-          setFlowState(null); // Finish
-          return `**Klant Opgeslagen!** ✅\n\nIk heb de gegevens van **${newData.name}** compleet gemaakt.\n• Email: ${newData.email}\n• Adres: ${newData.address}\n• Tel: ${newData.phone}`;
-        }
-      }
-    }
-
-    // 2. Start a new flow
-    if (lower.includes('voeg klant toe') || (lower.includes('nieuwe') && lower.includes('klant'))) {
-      const nameMatch = text.match(/(?:voeg klant toe|nieuwe klant)\s+(?:is\s+)?([a-zA-Z0-9\s]+)/i);
-      const name = nameMatch ? nameMatch[1].trim() : "Nieuwe Klant";
-
-      setFlowState({
-        type: 'ADD_CUSTOMER',
-        step: 'EMAIL',
-        data: { name }
-      });
-
-      return `Ik ga **${name}** toevoegen. 👤\n\nWat is het e-mailadres van deze klant?`;
-    }
-
-    // 3. General Responses (Fallback)
-    if (lower.includes("cashflow")) {
-      return "Je cashflow voor deze maand: **€24.800** totale omzet met **€14.600** aan uitgaven. Dit resulteert in een positieve cashflow van **€10.200**. Ten opzichte van vorige maand is dit een stijging van 12%.";
-    }
-
-    if (lower.includes("openstaande") || lower.includes("facturen")) {
-      return "Je hebt momenteel **3 openstaande facturen** ter waarde van **€8.750**:\n\n• Fam. Jansen - €3.450 (vervalt over 5 dagen)\n• Tech Solutions - €4.200 (vervalt over 12 dagen)\n• Mvr. de Vries - €1.100 (vervalt over 2 dagen)\n\nWil je dat ik herinneringen verstuur?";
-    }
-
-    return "Ik ben je AI-assistent. Ik kan klanten toevoegen ('Voeg klant toe [Naam]'), cashflow checken of projecten beheren. Waarmee kan ik helpen?";
-  };
-
   const handleSend = async (overrideText?: string) => {
     const textToSend = overrideText || input;
     if (!textToSend.trim() || isLoading) return;
@@ -181,10 +93,27 @@ export function AIAssistantPanel({ externalInput, onClearExternalInput }: AIAssi
     setInput("");
     setIsLoading(true);
 
-    // Simulate AI processing delay
-    await new Promise(resolve => setTimeout(resolve, 800 + Math.random() * 800));
+    let responseText = "Ik kan nu geen antwoord ophalen. Probeer het later opnieuw.";
 
-    const responseText = processMessage(textToSend);
+    try {
+      const nextHistory = [...messages, userMessage];
+      const response = await fetch("/api/assistant", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(buildAssistantPayload(nextHistory)),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (typeof data.reply === "string" && data.reply.trim().length > 0) {
+          responseText = data.reply;
+        }
+      }
+    } catch {
+      // Keep fallback responseText
+    }
 
     const aiResponse: Message = {
       id: (Date.now() + 1).toString(),

@@ -1,0 +1,74 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function hasValidPlan() {
+      return isAuthenticated() && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.billingStatus == 'active';
+    }
+    
+    // User profiles
+    match /users/{userId} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId);
+      
+      // User's klanten (customers)
+      match /klanten/{klantId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && hasValidPlan();
+        allow update, delete: if isOwner(userId);
+      }
+      
+      // User's facturen (invoices)
+      match /facturen/{factuurId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && hasValidPlan();
+        allow update, delete: if isOwner(userId);
+      }
+      
+      // User's projecten (projects)
+      match /projecten/{projectId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && hasValidPlan();
+        allow update, delete: if isOwner(userId);
+      }
+      
+      // User's offertes (quotes)
+      match /offertes/{offerteId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && hasValidPlan();
+        allow update, delete: if isOwner(userId);
+      }
+      
+      // User's transacties (transactions)
+      match /transacties/{transactieId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && hasValidPlan();
+        allow update, delete: if isOwner(userId);
+      }
+      
+      // User's uitgaven (expenses)
+      match /uitgaven/{uitgaveId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId) && hasValidPlan();
+        allow update, delete: if isOwner(userId);
+      }
+    }
+    
+    // Default: deny all other access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

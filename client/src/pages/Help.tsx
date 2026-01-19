@@ -1,9 +1,36 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
 import { HelpCircle, MessageCircle, Book, Mail, Phone } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 
 export default function Help() {
+  const [chatOpen, setChatOpen] = useState(false);
+  const [faqOpen, setFaqOpen] = useState(false);
+  const [selectedFaq, setSelectedFaq] = useState("");
+  const [chatMessage, setChatMessage] = useState("");
+
+  const faqs = [
+    "Hoe maak ik mijn eerste factuur?",
+    "Hoe voeg ik een nieuwe klant toe?",
+    "Hoe werkt de AI assistent?",
+    "Hoe kan ik mijn data exporteren?"
+  ];
+
+  const handleOpenFaq = (faq: string) => {
+    setSelectedFaq(faq);
+    setFaqOpen(true);
+  };
+
   return (
     <div className="space-y-8">
       <div className="space-y-4">
@@ -49,7 +76,7 @@ export default function Help() {
             <p className="text-muted-foreground mb-4">
               Praat direct met ons support team voor directe hulp.
             </p>
-            <Button className="w-full bg-blue-500 hover:bg-blue-600 text-white">
+            <Button className="w-full bg-blue-500 hover:bg-blue-600 text-white" onClick={() => setChatOpen(true)}>
               Start Chat
             </Button>
           </CardContent>
@@ -68,7 +95,11 @@ export default function Help() {
             <p className="text-muted-foreground mb-4">
               Doorzoek onze uitgebreide kennisbank met handleidingen en tips.
             </p>
-            <Button variant="outline" className="w-full border-white/10 hover:bg-white/5">
+            <Button
+              variant="outline"
+              className="w-full border-white/10 hover:bg-white/5"
+              onClick={() => document.getElementById("faq")?.scrollIntoView({ behavior: "smooth" })}
+            >
               Kennisbank
             </Button>
           </CardContent>
@@ -87,14 +118,20 @@ export default function Help() {
             <p className="text-muted-foreground mb-4">
               Stuur ons een e-mail en we reageren binnen 24 uur.
             </p>
-            <Button variant="outline" className="w-full border-white/10 hover:bg-white/5">
+            <Button
+              variant="outline"
+              className="w-full border-white/10 hover:bg-white/5"
+              onClick={() => {
+                window.location.href = "mailto:support@archon.ai";
+              }}
+            >
               Stuur E-mail
             </Button>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" id="faq">
         <Card className="glass-card border-white/5">
           <CardHeader>
             <CardTitle className="text-lg" style={{ fontFamily: 'var(--font-display)' }}>
@@ -102,18 +139,14 @@ export default function Help() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {[
-              "Hoe maak ik mijn eerste factuur?",
-              "Hoe voeg ik een nieuwe klant toe?",
-              "Hoe werkt de AI assistent?",
-              "Hoe kan ik mijn data exporteren?"
-            ].map((faq, i) => (
+            {faqs.map((faq, i) => (
               <motion.div
                 key={i}
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: 0.1 * i }}
                 className="p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-colors cursor-pointer"
+                onClick={() => handleOpenFaq(faq)}
               >
                 <p className="text-sm">{faq}</p>
               </motion.div>
@@ -158,6 +191,53 @@ export default function Help() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={chatOpen} onOpenChange={setChatOpen}>
+        <DialogContent className="glass-card border-white/10 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Live Chat</DialogTitle>
+            <DialogDescription>Stel je vraag aan ons support team.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3">
+            <Input
+              placeholder="Typ je vraag..."
+              value={chatMessage}
+              onChange={(e) => setChatMessage(e.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" className="border-white/10 hover:bg-white/5" onClick={() => setChatOpen(false)}>
+              Sluiten
+            </Button>
+            <Button
+              className="bg-blue-500 hover:bg-blue-600 text-white"
+              onClick={() => {
+                setChatMessage("");
+                setChatOpen(false);
+              }}
+            >
+              Verstuur
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={faqOpen} onOpenChange={setFaqOpen}>
+        <DialogContent className="glass-card border-white/10 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{selectedFaq}</DialogTitle>
+            <DialogDescription>Snelle uitleg uit de kennisbank.</DialogDescription>
+          </DialogHeader>
+          <div className="text-sm text-muted-foreground">
+            Bekijk de relevante handleiding in de kennisbank voor stapsgewijze uitleg.
+          </div>
+          <DialogFooter>
+            <Button variant="outline" className="border-white/10 hover:bg-white/5" onClick={() => setFaqOpen(false)}>
+              Sluiten
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
