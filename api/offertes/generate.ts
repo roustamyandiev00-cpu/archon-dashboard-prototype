@@ -5,6 +5,7 @@ interface OfferteRequest {
   projectType: string;
   description?: string;
   images?: string[]; // Base64 encoded images
+  imageUrls?: string[]; // URLs van geüploade foto's
   dimensions?: {
     width?: number;
     height?: number;
@@ -125,12 +126,14 @@ async function generateOfferteWithAI(
   projectType: string,
   description?: string,
   dimensions?: { width?: number; height?: number; area?: number },
-  images?: string[]
+  images?: string[],
+  imageUrls?: string[] // URLs van geüploade foto's
 ): Promise<{
   description: string;
   items: { desc: string; price: number }[];
   total: number;
   dimensions?: { width: number; height: number; area: number };
+  imageUrls?: string[]; // Return imageUrls in response
 }> {
   const apiKey = process.env.GEMINI_API_KEY;
   
@@ -258,7 +261,8 @@ Antwoord in JSON formaat:
     description: description || `${projectType} project voor ${client}${detectedDimensions ? ` (${detectedDimensions.area}m²)` : ''}`,
     items,
     total,
-    dimensions: detectedDimensions
+    dimensions: detectedDimensions,
+    imageUrls: imageUrls // Return imageUrls in response
   };
 }
 
@@ -279,7 +283,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       body.projectType,
       body.description,
       body.dimensions,
-      body.images
+      body.images,
+      body.imageUrls // Pass imageUrls to function
     );
 
     return res.status(200).json(result);

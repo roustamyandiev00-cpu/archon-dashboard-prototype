@@ -619,6 +619,7 @@ export default function Offertes() {
     total: number; 
     items: any[];
     dimensions?: { width: number; height: number; area: number };
+    images?: string[]; // Foto URLs
   }) => {
     const today = formatDate(new Date());
     try {
@@ -640,6 +641,8 @@ export default function Offertes() {
         aiInsight: data.dimensions 
           ? `Offerte aangemaakt met AI analyse (${data.dimensions.area}m²)`
           : "Offerte concept aangemaakt",
+        images: data.images, // Foto URLs opslaan
+        dimensions: data.dimensions, // Afmetingen opslaan
       });
       toast.success("AI offerte opgeslagen", { 
         description: data.dimensions 

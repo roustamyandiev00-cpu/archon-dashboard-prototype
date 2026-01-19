@@ -56,12 +56,20 @@ service firebase.storage {
                       isValidFileSize(10);
     }
     
-    // Offerte photos
+    // Offerte photos - specifieke path voor gebruikers/offertes
+    match /users/{userId}/offertes/{allPaths=**} {
+      allow read: if isOwner(userId);
+      allow write: if isOwner(userId) && 
+                      isValidImageType() && 
+                      isValidFileSize(10); // Verhoogd naar 10MB voor hogere resolutie foto's
+    }
+    
+    // Legacy path voor backward compatibility
     match /offertes/{userId}/{offerteId}/{allPaths=**} {
       allow read: if isOwner(userId);
       allow write: if isOwner(userId) && 
                       isValidImageType() && 
-                      isValidFileSize(5);
+                      isValidFileSize(10);
     }
     
     // Default: deny all other access

@@ -524,6 +524,8 @@ export interface Offerte {
   items?: number;
   winProbability?: number;
   aiInsight?: string;
+  images?: string[]; // Array van foto URLs
+  dimensions?: { width: number; height: number; area: number }; // Afmetingen in meters
   createdAt?: any;
   updatedAt?: any;
 }

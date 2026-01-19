@@ -303,6 +303,7 @@ export function AIOfferteDialog({ open, onOpenChange, onCreate }: AIOfferteDialo
             projectType: projectType,
             description: "",
             images: base64Images,
+            imageUrls: uploadedImageUrls.length > 0 ? uploadedImageUrls : undefined, // Send uploaded URLs
             dimensions: dimensions || undefined,
             manualPrice: pricingMode === "manual" ? finalPrice : undefined,
           }),
@@ -310,6 +311,9 @@ export function AIOfferteDialog({ open, onOpenChange, onCreate }: AIOfferteDialo
 
         if (response.ok) {
           const data = await response.json();
+          
+          // Use imageUrls from API response if available, otherwise use uploadedImageUrls or imagePreview
+          const finalImageUrls = data.imageUrls || uploadedImageUrls.length > 0 ? uploadedImageUrls : imagePreview;
           
           const offerteData: AIOfferteData = {
             client: clientName,
@@ -321,7 +325,7 @@ export function AIOfferteDialog({ open, onOpenChange, onCreate }: AIOfferteDialo
               }
             ],
             total: data.total || finalPrice,
-            images: uploadedImageUrls.length > 0 ? uploadedImageUrls : imagePreview, // Use uploaded URLs if available
+            images: finalImageUrls, // Use URLs from API response or uploaded URLs
             dimensions: data.dimensions || dimensions || undefined
           };
           
