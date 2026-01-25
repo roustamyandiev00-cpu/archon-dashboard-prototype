@@ -90,22 +90,16 @@ const structuredData = {
   ]
 };
 
+import { startPlanFlow } from "@/lib/plan-flow";
+
 export default function PricingPublic() {
   const [, setLocation] = useLocation();
   const { user } = useAuth();
-  const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
+  const [annual, setAnnual] = useState(false); // Add state for annual toggle to match Landing page logic if needed, or just use hardcoded
 
-  const handleStart = (planId?: string) => {
-    if (user) {
-      // User is logged in, go to pricing page in dashboard
-      setLocation("/app/pricing");
-    } else {
-      // User is not logged in, redirect to register with plan info
-      const url = planId 
-        ? `/register?plan=${planId}&billing=yearly`
-        : `/register`;
-      setLocation(url);
-    }
+  const handleStart = (planId: string) => {
+    // Determine billing cycle based on the annual state which is controlled in the UI below
+    startPlanFlow(planId, user, setLocation, annual ? "yearly" : "monthly");
   };
 
   const handleEnterprise = () => {
@@ -113,7 +107,7 @@ export default function PricingPublic() {
       description: "Stuur een email naar sales@archon.ai voor een persoonlijk gesprek.",
       duration: 5000
     });
-    
+
     // Open email client
     window.location.href = "mailto:sales@archon.ai?subject=Enterprise Plan Aanvraag&body=Ik ben geïnteresseerd in het Enterprise plan.";
   };
@@ -129,7 +123,7 @@ export default function PricingPublic() {
       </div>
 
       {/* Navigation */}
-      <header className="fixed top-0 left-0 right-0 z-50 glass-card border-b border-white/5 px-4 py-3 bg-zinc-950/50 backdrop-blur-xl">
+      <header className="fixed top-0 left-0 right-0 z-50 glass-card border-b border-white/5 px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] bg-zinc-950/50 backdrop-blur-xl transition-all duration-200">
         <div className="container mx-auto flex items-center justify-between">
           <Link href="/">
             <div className="flex items-center gap-2 cursor-pointer group">
@@ -297,11 +291,10 @@ export default function PricingPublic() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.6 }}
-                className={`relative rounded-3xl border p-8 ${
-                  tier.highlight
-                    ? "border-cyan-500/50 bg-gradient-to-b from-cyan-500/10 to-zinc-900 shadow-xl shadow-cyan-500/10"
-                    : "border-white/10 bg-zinc-900/70"
-                } ${tier.disabled ? "opacity-60" : ""}`}
+                className={`relative rounded-3xl border p-8 ${tier.highlight
+                  ? "border-cyan-500/50 bg-gradient-to-b from-cyan-500/10 to-zinc-900 shadow-xl shadow-cyan-500/10"
+                  : "border-white/10 bg-zinc-900/70"
+                  } ${tier.disabled ? "opacity-60" : ""}`}
               >
                 {tier.highlight && (
                   <span className="absolute -top-3 left-6 rounded-full bg-cyan-500 px-3 py-1 text-xs font-semibold text-white shadow-lg shadow-cyan-500/30">
@@ -332,11 +325,10 @@ export default function PricingPublic() {
                   ))}
                 </ul>
                 <Button
-                  className={`mt-8 w-full rounded-xl ${
-                    tier.highlight
-                      ? "bg-cyan-500 hover:bg-cyan-600 text-white"
-                      : "bg-white/5 hover:bg-white/10 text-white border border-white/10"
-                  }`}
+                  className={`mt-8 w-full rounded-xl ${tier.highlight
+                    ? "bg-cyan-500 hover:bg-cyan-600 text-white"
+                    : "bg-white/5 hover:bg-white/10 text-white border border-white/10"
+                    }`}
                   onClick={() => handleStart(tier.planId)}
                   disabled={tier.disabled}
                 >

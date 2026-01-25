@@ -6,11 +6,20 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { ArrowRight, Check, Sparkles, BarChart, Users, Shield, Zap } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+
+import { startPlanFlow } from "@/lib/plan-flow";
 
 export default function Landing() {
   const [annual, setAnnual] = useState(false);
+  const [, setLocation] = useLocation();
+  const { user } = useAuth();
+
+  const handleStart = (planId: string) => {
+    startPlanFlow(planId, user, setLocation, annual ? "yearly" : "monthly");
+  };
 
   return (
     <div className="min-h-screen bg-zinc-950 text-white selection:bg-cyan-500/30">
@@ -23,7 +32,7 @@ export default function Landing() {
       </div>
 
       {/* Navigation */}
-      <header className="fixed top-0 left-0 right-0 z-50 glass-card border-b border-white/5 px-4 py-3 bg-zinc-950/50 backdrop-blur-xl">
+      <header className="fixed top-0 left-0 right-0 z-50 glass-card border-b border-white/5 px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] bg-zinc-950/50 backdrop-blur-xl transition-all duration-200">
         <div className="container mx-auto flex items-center justify-between">
           <Link href="/">
             <div className="flex items-center gap-2 cursor-pointer group">
@@ -47,16 +56,30 @@ export default function Landing() {
             </Link>
           </nav>
           <div className="flex items-center gap-3">
-            <Link href="/login">
-              <Button variant="ghost" size="sm" className="text-sm text-zinc-300 hover:text-white hover:bg-white/5">
-                Inloggen
+            {user ? (
+              <Button
+                size="sm"
+                className="bg-cyan-500 hover:bg-cyan-600 text-white shadow-lg shadow-cyan-500/20 border-0"
+                onClick={() => setLocation("/dashboard")}
+              >
+                Dashboard
               </Button>
-            </Link>
-            <Link href="/pricing">
-              <Button size="sm" className="bg-cyan-500 hover:bg-cyan-600 text-white shadow-lg shadow-cyan-500/20 border-0">
-                Gratis proberen
-              </Button>
-            </Link>
+            ) : (
+              <>
+                <Link href="/login">
+                  <Button variant="ghost" size="sm" className="text-sm text-zinc-300 hover:text-white hover:bg-white/5">
+                    Inloggen
+                  </Button>
+                </Link>
+                <Button
+                  size="sm"
+                  className="bg-cyan-500 hover:bg-cyan-600 text-white shadow-lg shadow-cyan-500/20 border-0"
+                  onClick={() => handleStart("growth")}
+                >
+                  Gratis proberen
+                </Button>
+              </>
+            )}
           </div>
         </div>
       </header>
@@ -104,12 +127,14 @@ export default function Landing() {
             transition={{ duration: 0.6, delay: 0.3 }}
             className="flex flex-col sm:flex-row gap-4 justify-center items-center"
           >
-            <Link href="/pricing">
-              <Button size="lg" className="h-14 px-8 text-lg bg-cyan-500 hover:bg-cyan-600 text-white shadow-xl shadow-cyan-500/20 hover:shadow-cyan-500/30 transition-all rounded-xl">
-                Start gratis proefperiode
-                <ArrowRight className="ml-2 w-5 h-5" />
-              </Button>
-            </Link>
+            <Button
+              size="lg"
+              className="h-14 px-8 text-lg bg-cyan-500 hover:bg-cyan-600 text-white shadow-xl shadow-cyan-500/20 hover:shadow-cyan-500/30 transition-all rounded-xl"
+              onClick={() => handleStart("growth")}
+            >
+              Start gratis proefperiode
+              <ArrowRight className="ml-2 w-5 h-5" />
+            </Button>
             <Link href="#demo">
               <Button variant="outline" size="lg" className="h-14 px-8 text-lg border-white/10 bg-white/5 hover:bg-white/10 text-white hover:border-white/20 rounded-xl">
                 Bekijk de demo
@@ -291,11 +316,12 @@ export default function Landing() {
               transition={{ duration: 0.6, delay: 0.3 }}
               className="flex flex-col sm:flex-row gap-4"
             >
-              <Link href="/pricing">
-                <Button className="h-12 px-6 bg-cyan-500 hover:bg-cyan-600 text-white shadow-lg shadow-cyan-500/20 rounded-xl">
-                  Plan een demo
-                </Button>
-              </Link>
+              <Button
+                className="h-12 px-6 bg-cyan-500 hover:bg-cyan-600 text-white shadow-lg shadow-cyan-500/20 rounded-xl"
+                onClick={() => handleStart("growth")}
+              >
+                Plan een demo
+              </Button>
               <div className="flex items-center gap-2 text-sm text-zinc-400">
                 <Zap className="h-4 w-4 text-cyan-400" />
                 Live dashboard in minder dan 2 minuten
@@ -375,21 +401,13 @@ export default function Landing() {
             {[
               {
                 name: "Starter",
-                price: annual ? "€29" : "€29", // User prompt implies base prices, usually showing the Monthly cost but billed annually? Or showing the discounted monthly cost? 
-                // "Starter: €278/jaar (bespaar €70)"
-                // 278/12 = 23.16. 
-                // Let's just show the calculated monthly price if annual? Or show the Total Yearly price?
-                // Standard SaaS practice: Show monthly price, billed annually. 
-                // User provided explicit yearly totals. I will show Monthly price for Monthly view, and (YearlyTotal / 12) for Yearly view? Or just the Yearly Total?
-                // The prompt says "Starter: €278/jaar".
-                // I will show the label "€29" or "€23" per month?
-                // Let's stick to showing the "per month" equivalent or just the text provided.
-                // Prompt: "Starter - €29/maand (monthly)", "Starter: €278/jaar (yearly)"
+                price: annual ? "€29" : "€29",
                 priceDisplay: annual ? "€278" : "€29",
                 period: annual ? "/ jaar" : "/ maand",
                 description: "Voor ZZP'ers en kleine aannemers",
                 features: ["5 actieve projecten", "Onbeperkt offertes & facturen", "Basis projectbeheer", "Betalingsmijlpalen", "Email support"],
-                highlight: false
+                highlight: false,
+                planId: "starter"
               },
               {
                 name: "Professional",
@@ -398,7 +416,8 @@ export default function Landing() {
                 description: "Voor groeiende bouwbedrijven",
                 features: ["25 actieve projecten", "AI offerte generator (10/mnd)", "AI winstkans analyse", "Auto projectcreatie", "Geavanceerde rapportages", "Prioriteit support"],
                 highlight: true,
-                badge: "Meest gekozen"
+                badge: "Meest gekozen",
+                planId: "growth"
               },
               {
                 name: "Business",
@@ -406,7 +425,8 @@ export default function Landing() {
                 period: annual ? "/ jaar" : "/ maand",
                 description: "Voor middelgrote bouwbedrijven",
                 features: ["Onbeperkt projecten", "Onbeperkt AI functies", "Team toegang (10 users)", "Custom betalingen", "API toegang", "White-label opties", "Phone + Slack support"],
-                highlight: false
+                highlight: false,
+                planId: "enterprise"
               },
               {
                 name: "Enterprise",
@@ -414,7 +434,8 @@ export default function Landing() {
                 period: "",
                 description: "Voor grote bouwconcerns",
                 features: ["Onbeperkt team members", "Dedicated account manager", "On-premise optie", "Custom AI modellen", "SLA garanties", "Training & onboarding"],
-                highlight: false
+                highlight: false,
+                planId: null
               }
             ].map((tier, index) => (
               <motion.div
@@ -424,8 +445,8 @@ export default function Landing() {
                 viewport={{ once: true }}
                 transition={{ duration: 0.6, delay: index * 0.1 }}
                 className={`relative rounded-3xl border p-6 flex flex-col ${tier.highlight
-                    ? "border-cyan-500/50 bg-gradient-to-b from-cyan-500/10 to-zinc-900"
-                    : "border-white/10 bg-zinc-900/70"
+                  ? "border-cyan-500/50 bg-gradient-to-b from-cyan-500/10 to-zinc-900"
+                  : "border-white/10 bg-zinc-900/70"
                   }`}
               >
                 {tier.highlight && (
@@ -455,16 +476,21 @@ export default function Landing() {
                     </li>
                   ))}
                 </ul>
-                <Link href={tier.name === "Enterprise" ? "mailto:sales@archon.ai" : "/pricing"}>
-                  <Button
-                    className={`mt-8 w-full rounded-xl ${tier.highlight
-                        ? "bg-cyan-500 hover:bg-cyan-600 text-white"
-                        : "bg-white/5 hover:bg-white/10 text-white border border-white/10"
-                      }`}
-                  >
-                    {tier.name === "Enterprise" ? "Neem contact op" : "Start nu"}
-                  </Button>
-                </Link>
+                <Button
+                  className={`mt-8 w-full rounded-xl ${tier.highlight
+                    ? "bg-cyan-500 hover:bg-cyan-600 text-white"
+                    : "bg-white/5 hover:bg-white/10 text-white border border-white/10"
+                    }`}
+                  onClick={() => {
+                    if (tier.name === "Enterprise") {
+                      window.location.href = "mailto:sales@archon.ai";
+                    } else {
+                      handleStart(tier.planId || "starter");
+                    }
+                  }}
+                >
+                  {tier.name === "Enterprise" ? "Neem contact op" : "Start nu"}
+                </Button>
               </motion.div>
             ))}
           </div>
@@ -566,12 +592,14 @@ export default function Landing() {
                 transition={{ duration: 0.6, delay: 0.2 }}
                 className="flex flex-col sm:flex-row gap-4 justify-center items-center"
               >
-                <Link href="/pricing">
-                  <Button size="lg" className="h-14 px-10 text-lg bg-white text-zinc-950 hover:bg-zinc-200 shadow-xl transition-all rounded-xl font-semibold">
-                    Start gratis proefperiode
-                    <ArrowRight className="ml-2 w-5 h-5" />
-                  </Button>
-                </Link>
+                <Button
+                  size="lg"
+                  className="h-14 px-10 text-lg bg-white text-zinc-950 hover:bg-zinc-200 shadow-xl transition-all rounded-xl font-semibold"
+                  onClick={() => handleStart("growth")}
+                >
+                  Start gratis proefperiode
+                  <ArrowRight className="ml-2 w-5 h-5" />
+                </Button>
                 <Link href="/login">
                   <Button variant="outline" size="lg" className="h-14 px-10 text-lg border-white/20 bg-transparent text-white hover:bg-white/10 hover:border-white/30 rounded-xl">
                     Ik heb al een account

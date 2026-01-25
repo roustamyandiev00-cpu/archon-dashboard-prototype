@@ -1,0 +1,46 @@
+type User @table {
+  displayName: String!
+  createdAt: Timestamp!
+  email: String
+  photoUrl: String
+}
+
+type Campaign @table {
+  user: User!
+  name: String!
+  gameSystem: String!
+  createdAt: Timestamp!
+  description: String
+  setting: String
+}
+
+type GeneratedContent @table {
+  campaign: Campaign!
+  user: User!
+  type: String!
+  title: String!
+  content: String!
+  createdAt: Timestamp!
+  tags: [String]
+}
+
+type CustomEntry @table {
+  campaign: Campaign!
+  user: User!
+  type: String!
+  name: String!
+  description: String!
+  createdAt: Timestamp!
+  notes: String
+  imageUrl: String
+}
+
+type SessionLog @table {
+  campaign: Campaign!
+  sessionDate: Date!
+  summary: String!
+  createdAt: Timestamp!
+  playerActions: String
+  gmNotes: String
+  keyEvents: String
+}

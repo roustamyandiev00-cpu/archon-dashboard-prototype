@@ -1,22 +1,21 @@
-import { auth } from "@/lib/firebase";
+import { supabase } from "@/lib/supabase";
 
 // Base API configuration
-const API_BASE_URL = import.meta.env.DEV 
-  ? 'http://localhost:5001/archon-dashboard/us-central1/api'  // Firebase emulator
+const API_BASE_URL = import.meta.env.DEV
+  ? 'http://localhost:3000/api'  // Local development
   : '/api';  // Production
 
 // Generic API client with authentication
 class ApiClient {
   private async getAuthHeaders(): Promise<HeadersInit> {
-    const user = auth.currentUser;
-    if (!user) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
       throw new Error('User not authenticated');
     }
-    
-    const token = await user.getIdToken();
+
     return {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`
+      'Authorization': `Bearer ${session.access_token}`
     };
   }
 
@@ -79,44 +78,36 @@ class ApiClient {
   }
 
   async uploadAvatar(file: File): Promise<{ url: string; message: string }> {
-    const user = auth.currentUser;
-    if (!user) {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token || !session.user) {
       throw new Error('User not authenticated');
     }
-    
-    const token = await user.getIdToken();
-    
-    // Convert file to base64
-    const base64 = await new Promise<string>((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        // Remove data:image/...;base64, prefix
-        const base64Data = result.split(',')[1];
-        resolve(base64Data);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
 
-    const response = await fetch(`${API_BASE_URL}/gebruikers/avatar`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
-      },
-      body: JSON.stringify({
-        data: base64,
-        contentType: file.type
-      })
-    });
+    // Create a unique file path: userId/timestamp.ext
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}.${fileExt}`;
+    const filePath = `${session.user.id}/${fileName}`;
 
-    if (!response.ok) {
-      const error = await response.json();
-      throw new Error(error.error || `API Error: ${response.status} ${response.statusText}`);
+    // Upload to Supabase Storage 'avatars' bucket
+    // Note: The bucket 'avatars' must exist and RLS policies must allow the user to upload to their folder
+    const { error: uploadError } = await supabase.storage
+      .from('avatars')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: true
+      });
+
+    if (uploadError) {
+      console.error('Supabase storage upload error:', uploadError);
+      throw new Error(uploadError.message || 'Fout bij uploaden naar storage');
     }
 
-    return response.json();
+    // Get public URL
+    const { data: { publicUrl } } = supabase.storage
+      .from('avatars')
+      .getPublicUrl(filePath);
+
+    return { url: publicUrl, message: 'Avatar succesvol geüpload' };
   }
 }
 
@@ -149,19 +140,19 @@ export interface Klant extends Record<string, unknown> {
 
 export const klantenApi = {
   // Haal alle klanten op
-  getAll: (): Promise<{ klanten: Klant[] }> => 
+  getAll: (): Promise<{ klanten: Klant[] }> =>
     apiClient.get('/klanten'),
 
   // Maak nieuwe klant aan
-  create: (klant: Omit<Klant, 'id' | 'createdAt' | 'updatedAt'>): Promise<Klant> => 
+  create: (klant: Omit<Klant, 'id' | 'createdAt' | 'updatedAt'>): Promise<Klant> =>
     apiClient.post('/klanten', klant),
 
   // Update klant
-  update: (id: string, klant: Partial<Klant>): Promise<Klant> => 
+  update: (id: string, klant: Partial<Klant>): Promise<Klant> =>
     apiClient.put(`/klanten/${id}`, klant),
 
   // Verwijder klant
-  delete: (id: string): Promise<{ message: string }> => 
+  delete: (id: string): Promise<{ message: string }> =>
     apiClient.delete(`/klanten/${id}`)
 };
 
@@ -193,19 +184,19 @@ export interface Factuur {
 
 export const facturenApi = {
   // Haal alle facturen op
-  getAll: (): Promise<{ facturen: Factuur[] }> => 
+  getAll: (): Promise<{ facturen: Factuur[] }> =>
     apiClient.get('/facturen'),
 
   // Maak nieuwe factuur aan
-  create: (factuur: Omit<Factuur, 'id' | 'factuurNummer' | 'createdAt' | 'updatedAt'>): Promise<Factuur> => 
+  create: (factuur: Omit<Factuur, 'id' | 'factuurNummer' | 'createdAt' | 'updatedAt'>): Promise<Factuur> =>
     apiClient.post('/facturen', factuur),
 
   // Update factuur
-  update: (id: string, factuur: Partial<Factuur>): Promise<Factuur> => 
+  update: (id: string, factuur: Partial<Factuur>): Promise<Factuur> =>
     apiClient.put(`/facturen/${id}`, factuur),
 
   // Verwijder factuur
-  delete: (id: string): Promise<{ message: string }> => 
+  delete: (id: string): Promise<{ message: string }> =>
     apiClient.delete(`/facturen/${id}`)
 };
 

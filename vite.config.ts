@@ -13,6 +13,8 @@ export default defineConfig({
       "@": path.resolve(import.meta.dirname, "client", "src"),
       "@shared": path.resolve(import.meta.dirname, "shared"),
       "@assets": path.resolve(import.meta.dirname, "attached_assets"),
+      "react": path.resolve(import.meta.dirname, "node_modules/react"),
+      "react-dom": path.resolve(import.meta.dirname, "node_modules/react-dom"),
     },
   },
   envDir: path.resolve(import.meta.dirname),
@@ -60,6 +62,6 @@ export default defineConfig({
   // Performance optimizations
   optimizeDeps: {
     include: ['react', 'react-dom', 'react/jsx-runtime'],
-    exclude: ['@firebase/app', '@firebase/auth', '@firebase/firestore'],
+    exclude: ['@supabase/supabase-js'],
   },
 });

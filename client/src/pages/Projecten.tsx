@@ -26,7 +26,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../components/ui/select";
-import { useProjecten } from "@/lib/api-firestore";
+import { useProjecten } from "@/lib/api-supabase";
 import { useStoredState } from "@/hooks/useStoredState";
 
 interface PaymentMilestone {
@@ -611,7 +611,7 @@ export default function Projecten() {
       )}
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="glass-card border-white/10 sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg bg-[#0B0D12]/80 backdrop-blur-2xl border border-white/10 shadow-2xl shadow-black/50">
           <DialogHeader>
             <DialogTitle>{activeProject ? "Project bewerken" : "Nieuw project"}</DialogTitle>
             <DialogDescription>Leg de kerngegevens van het project vast.</DialogDescription>
@@ -693,7 +693,7 @@ export default function Projecten() {
       </Dialog>
 
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="glass-card border-white/10 sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg bg-[#0B0D12]/80 backdrop-blur-2xl border border-white/10 shadow-2xl shadow-black/50">
           <DialogHeader>
             <DialogTitle>Projectdetails</DialogTitle>
             <DialogDescription>Overzicht van het project en de status.</DialogDescription>

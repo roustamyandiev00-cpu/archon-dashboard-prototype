@@ -44,7 +44,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import PageHeader from "@/components/PageHeader";
 import { exportToCsv, parseCsv, readFileAsText } from "@/lib/file";
-import { useKlanten, type Klant } from "@/lib/api-firestore";
+import { useKlanten, type Klant } from "@/lib/api-supabase";
 
 
 
@@ -574,7 +574,7 @@ export default function Klanten() {
           });
         }
       }}>
-        <DialogContent className="glass-card border-white/10 sm:max-w-2xl">
+        <DialogContent className="sm:max-w-2xl bg-[#0B0D12]/80 backdrop-blur-2xl border border-white/10 shadow-2xl shadow-black/50">
           <DialogHeader>
             <DialogTitle>{editingKlant ? "Klant bewerken" : "Nieuwe klant toevoegen"}</DialogTitle>
             <DialogDescription>
@@ -698,7 +698,7 @@ export default function Klanten() {
 
       {/* Import Dialog */}
       <Dialog open={importDialogOpen} onOpenChange={setImportDialogOpen}>
-        <DialogContent className="glass-card border-white/10 sm:max-w-md">
+        <DialogContent className="sm:max-w-md bg-[#0B0D12]/80 backdrop-blur-2xl border border-white/10 shadow-2xl shadow-black/50">
           <DialogHeader>
             <DialogTitle>Klanten importeren</DialogTitle>
             <DialogDescription>

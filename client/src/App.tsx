@@ -5,15 +5,17 @@ import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundaryComponent";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { AuthProvider } from "./contexts/AuthContext";
+import { AISettingsProvider } from "./contexts/AISettingsContext";
 import DashboardLayout from "./components/DashboardLayout";
 import ProtectedRoute from "./components/ProtectedRoute";
-
+import PWAInstaller from "./components/PWAInstaller";
+ 
 // Eager load critical pages
 import Landing from "./pages/Landing";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import NotFound from "./pages/NotFound";
-
+ 
 // Lazy load dashboard pages
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Klanten = lazy(() => import("./pages/Klanten"));
@@ -32,8 +34,9 @@ const AIAssistant = lazy(() => import("./pages/AIAssistant"));
 const Pricing = lazy(() => import("./pages/Pricing"));
 const PricingPublic = lazy(() => import("./pages/PricingPublic"));
 const Modules = lazy(() => import("./pages/Modules"));
+const Wizard = lazy(() => import("./pages/Wizard"));
 const Help = lazy(() => import("./pages/Help"));
-
+ 
 // Loading component
 function PageLoader() {
   return (
@@ -42,7 +45,7 @@ function PageLoader() {
     </div>
   );
 }
-
+ 
 function Router() {
   return (
     <Switch>
@@ -55,7 +58,7 @@ function Router() {
           <PricingPublic />
         </Suspense>
       </Route>
-
+ 
       {/* Protected dashboard routes - lazy loaded */}
       <Route path="/dashboard">
         {(params) => (
@@ -212,7 +215,7 @@ function Router() {
           </ProtectedRoute>
         )}
       </Route>
-
+ 
       <Route path="/app/pricing">
         {(params) => (
           <ProtectedRoute>
@@ -224,13 +227,25 @@ function Router() {
           </ProtectedRoute>
         )}
       </Route>
-
+ 
       <Route path="/modules">
         {(params) => (
           <ProtectedRoute>
             <DashboardLayout>
               <Suspense fallback={<PageLoader />}>
                 <Modules {...params} />
+              </Suspense>
+            </DashboardLayout>
+          </ProtectedRoute>
+        )}
+      </Route>
+      
+      <Route path="/wizard">
+        {(params) => (
+          <ProtectedRoute>
+            <DashboardLayout>
+              <Suspense fallback={<PageLoader />}>
+                <Wizard {...params} />
               </Suspense>
             </DashboardLayout>
           </ProtectedRoute>
@@ -260,36 +275,39 @@ function Router() {
           </ProtectedRoute>
         )}
       </Route>
-
+ 
       <Route path="/404" component={NotFound} />
       <Route component={NotFound} />
     </Switch>
   );
 }
-
+ 
 function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
-        <ThemeProvider defaultTheme="dark" switchable={true}>
-          <TooltipProvider>
-            <Toaster
-              position="top-right"
-              toastOptions={{
-                style: {
-                  background: "var(--card)",
-                  border: "1px solid var(--border)",
-                  color: "var(--foreground)",
-                },
-                className: "glass-card",
-              }}
-            />
-            <Router />
-          </TooltipProvider>
-        </ThemeProvider>
+        <AISettingsProvider>
+          <ThemeProvider defaultTheme="light" switchable={true}>
+            <TooltipProvider>
+              <Toaster
+                position="top-right"
+                toastOptions={{
+                  style: {
+                    background: "var(--card)",
+                    border: "1px solid var(--border)",
+                    color: "var(--foreground)",
+                  },
+                  className: "glass-card",
+                }}
+              />
+              <PWAInstaller />
+              <Router />
+            </TooltipProvider>
+          </ThemeProvider>
+        </AISettingsProvider>
       </AuthProvider>
     </ErrorBoundary>
   );
 }
-
+ 
 export default App;

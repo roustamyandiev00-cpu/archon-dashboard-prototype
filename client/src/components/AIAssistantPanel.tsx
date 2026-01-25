@@ -189,6 +189,7 @@ export function AIAssistantPanel({ externalInput, onClearExternalInput }: AIAssi
                 key={message.id}
                 message={message}
                 index={index}
+                onCreateOfferte={handleCreateOfferte}
               />
             ))}
           </AnimatePresence>
@@ -285,9 +286,10 @@ export function AIAssistantPanel({ externalInput, onClearExternalInput }: AIAssi
 interface MessageBubbleProps {
   message: Message;
   index: number;
+  onCreateOfferte?: () => void;
 }
 
-function MessageBubble({ message, index }: MessageBubbleProps) {
+function MessageBubble({ message, index, onCreateOfferte }: MessageBubbleProps) {
   const isUser = message.role === "user";
 
   return (
@@ -336,7 +338,7 @@ function MessageBubble({ message, index }: MessageBubbleProps) {
             <div className="mt-3 pt-3 border-t border-border">
               <Button
                 size="sm"
-                onClick={handleCreateOfferte}
+                onClick={onCreateOfferte}
                 className="w-full bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 text-white"
               >
                 <Receipt className="w-3 h-3 mr-2" />

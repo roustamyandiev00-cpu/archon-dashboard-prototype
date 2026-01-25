@@ -549,7 +549,7 @@ export default function Agenda() {
       </div>
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="glass-card border-white/10 sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg bg-[#0B0D12]/80 backdrop-blur-2xl border border-white/10 shadow-2xl shadow-black/50">
           <DialogHeader>
             <DialogTitle>{activeAppointment ? "Afspraak bewerken" : "Nieuwe afspraak"}</DialogTitle>
             <DialogDescription>Plan een afspraak of deadline in je agenda.</DialogDescription>
@@ -683,7 +683,7 @@ export default function Agenda() {
       </Dialog>
 
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="glass-card border-white/10 sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg bg-[#0B0D12]/80 backdrop-blur-2xl border border-white/10 shadow-2xl shadow-black/50">
           <DialogHeader>
             <DialogTitle>Afspraakdetails</DialogTitle>
             <DialogDescription>Bekijk de gegevens van deze afspraak.</DialogDescription>

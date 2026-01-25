@@ -1,9 +1,0 @@
-{
-  "projects": {
-    "default": "archonai",
-    "firebase apps:sdkconfig web": "ai-agent-5fab0",
-    "curl -s \"https://console.firebase.google.com/v1/r/project/archonai/webapps\" 2>&1 | head -20": "ai-agent-5fab0"
-  },
-  "targets": {},
-  "etags": {}
-}

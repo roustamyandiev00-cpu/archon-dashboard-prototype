@@ -214,12 +214,12 @@ export const demoData = {
 };
 
 export const seedLocalStorage = () => {
-    // Simulated user ID from firebase.ts
+    // Simulated user ID from Supabase
     const MOCK_UID = "mock-user-123";
 
-    // Helper to set local storage in the format expected by the mock firebase
+    // Helper to set local storage in the format expected by the mock Supabase
     const setStore = (key: string, value: any) => {
-        const storeKey = `firestore:users/${MOCK_UID}/state/${key}`;
+        const storeKey = `supabase:users/${MOCK_UID}/state/${key}`;
         localStorage.setItem(storeKey, JSON.stringify({ value }));
     };
 

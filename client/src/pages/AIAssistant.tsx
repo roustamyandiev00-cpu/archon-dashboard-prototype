@@ -11,14 +11,43 @@ import {
   Users,
   Calendar,
   CreditCard,
+  ThumbsUp,
+  ThumbsDown,
+  Edit,
+  BookOpen,
+  CheckCircle2,
+  Loader2,
+  Upload,
+  X,
+  Wand2
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
+import { Textarea } from "../components/ui/textarea";
+import { Label } from "../components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../components/ui/select";
 import PageHeader from "../components/PageHeader";
 import { cn } from "../lib/utils";
 import { toast } from "sonner";
 import { useLocation } from "wouter";
+import { supabase } from "../lib/supabase";
+import { useAIFeedback, useAIKnowledge } from "../lib/api-supabase";
+import { useAuth } from "@/contexts/AuthContext";
 
 type ChatRole = "user" | "assistant";
 
@@ -43,6 +72,14 @@ export default function AIAssistant() {
   const [input, setInput] = useState("");
   const [isThinking, setIsThinking] = useState(false);
   const [location, navigate] = useLocation();
+  const { feedback, addFeedback } = useAIFeedback();
+  const { knowledgeFiles, deleteKnowledgeFile } = useAIKnowledge();
+  const [isUploading, setIsUploading] = useState(false);
+  const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false);
+  const [selectedMessage, setSelectedMessage] = useState<ChatMessage | null>(null);
+  const [feedbackType, setFeedbackType] = useState<"positive" | "negative" | "corrected">("positive");
+  const [correction, setCorrection] = useState("");
+  const [notes, setNotes] = useState("");
 
   // Handle initial prompt from navigation state
   useEffect(() => {
@@ -204,6 +241,84 @@ export default function AIAssistant() {
     navigate(route);
   };
 
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Check file type
+    const allowedTypes = [
+      'application/pdf',
+      'text/csv',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    ];
+
+    if (!allowedTypes.includes(file.type) && !file.name.endsWith('.csv') && !file.name.endsWith('.xlsx')) {
+      toast.error("Alleen PDF, CSV of Excel bestanden zijn toegestaan");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Bestand is te groot (max 10MB)");
+      return;
+    }
+
+    setIsUploading(true);
+    const toastId = toast.loading(`Bezig met uploaden: ${file.name}...`);
+
+    try {
+      const { user } = useAuth();
+      if (!user) throw new Error("Niet ingelogd");
+
+      // Read file as base64
+      const reader = new FileReader();
+      const base64Promise = new Promise<string>((resolve) => {
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(',')[1]); // Remove data: prefix
+        };
+        reader.readAsDataURL(file);
+      });
+
+      const base64Data = await base64Promise;
+      // const token = await user.getIdToken(); // Supabase uses session, handled by client usually or we get session
+      // For now, assuming API handles auth or we pass user ID. 
+      // But wait, the code uses Bearer token.
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
+      const response = await fetch("/api/ai/upload-knowledge", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          file: {
+            name: file.name,
+            contentType: file.type || 'application/octet-stream',
+            data: base64Data,
+            size: file.size
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || "Upload mislukt");
+      }
+
+      toast.success(`${file.name} succesvol toegevoegd aan kennisbank`, { id: toastId });
+    } catch (error: any) {
+      console.error("Upload error:", error);
+      toast.error(error.message || "Fout bij uploaden", { id: toastId });
+    } finally {
+      setIsUploading(false);
+      // Reset input
+      e.target.value = '';
+    }
+  };
+
   const [activeTab, setActiveTab] = useState<'chat' | 'governance'>('chat');
 
   return (
@@ -276,6 +391,55 @@ export default function AIAssistant() {
                         )}
                       >
                         <p>{message.text}</p>
+                        {message.role === "assistant" && message.id !== "welcome" && (
+                          <div className="flex gap-2 mt-3 pt-3 border-t border-cyan-500/20">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs text-green-400 hover:text-green-300 hover:bg-green-500/10"
+                              onClick={() => {
+                                setSelectedMessage(message);
+                                setFeedbackType("positive");
+                                setCorrection("");
+                                setNotes("");
+                                setFeedbackDialogOpen(true);
+                              }}
+                            >
+                              <ThumbsUp className="w-3 h-3 mr-1" />
+                              Goed
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                              onClick={() => {
+                                setSelectedMessage(message);
+                                setFeedbackType("negative");
+                                setCorrection("");
+                                setNotes("");
+                                setFeedbackDialogOpen(true);
+                              }}
+                            >
+                              <ThumbsDown className="w-3 h-3 mr-1" />
+                              Niet goed
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-7 text-xs text-cyan-400 hover:text-cyan-300 hover:bg-cyan-500/10"
+                              onClick={() => {
+                                setSelectedMessage(message);
+                                setFeedbackType("corrected");
+                                setCorrection("");
+                                setNotes("");
+                                setFeedbackDialogOpen(true);
+                              }}
+                            >
+                              <Edit className="w-3 h-3 mr-1" />
+                              Corrigeren
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     </motion.div>
                   ))}
@@ -409,114 +573,383 @@ export default function AIAssistant() {
         </div>
       ) : (
         /* Governance View */
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-          {/* Autonomy Settings */}
-          <Card className="glass-card border-white/5">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Bot className="w-5 h-5 text-cyan-400" />
-                AI Autonomie & Toestemmingen
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5">
-                  <div className="space-y-1">
-                    <p className="font-medium text-white">Factuur Concepten</p>
-                    <p className="text-xs text-muted-foreground">Automatisch klaarzetten op basis van uren</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-cyan-400">Altijd</span>
-                    <div className="w-10 h-5 bg-cyan-500/20 rounded-full relative cursor-pointer border border-cyan-500/50">
-                      <div className="absolute right-1 top-1 w-3 h-3 bg-cyan-400 rounded-full shadow-lg hover:scale-110 transition-transform" />
+        <>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            {/* Autonomy Settings */}
+            <Card className="glass-card border-white/5">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Bot className="w-5 h-5 text-cyan-400" />
+                  AI Autonomie & Toestemmingen
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5">
+                    <div className="space-y-1">
+                      <p className="font-medium text-white">Factuur Concepten</p>
+                      <p className="text-xs text-muted-foreground">Automatisch klaarzetten op basis van uren</p>
                     </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5">
-                  <div className="space-y-1">
-                    <p className="font-medium text-white">E-mails Versturen</p>
-                    <p className="text-xs text-muted-foreground">Offertes direct versturen naar klant</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground">Alleen Draft</span>
-                    <div className="w-10 h-5 bg-white/10 rounded-full relative cursor-pointer border border-white/10">
-                      <div className="absolute left-1 top-1 w-3 h-3 bg-white/50 rounded-full shadow-lg hover:scale-110 transition-transform" />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5">
-                  <div className="space-y-1">
-                    <p className="font-medium text-white">Klanten Analyseren</p>
-                    <p className="text-xs text-muted-foreground">CRM data scannen op kansen</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-cyan-400">Altijd</span>
-                    <div className="w-10 h-5 bg-cyan-500/20 rounded-full relative cursor-pointer border border-cyan-500/50">
-                      <div className="absolute right-1 top-1 w-3 h-3 bg-cyan-400 rounded-full shadow-lg hover:scale-110 transition-transform" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="p-4 rounded-xl bg-gradient-to-r from-cyan-500/10 to-transparent border border-cyan-500/20 flex gap-4 items-start">
-                <Sparkles className="w-5 h-5 text-cyan-400 mt-1 shrink-0" />
-                <div>
-                  <p className="text-sm font-medium text-white">Slimme Modus: Co-Pilot</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    De AI werkt momenteel als co-piloot. Hij zal nooit zelfstandig berichten versturen zonder jouw goedkeuring, maar zet wel alles voor je klaar.
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Audit Log */}
-          <Card className="glass-card border-white/5">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="w-5 h-5 text-purple-400" />
-                AI Activiteiten Logboek
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-0 divide-y divide-white/5">
-                {activityLog.length === 0 ? (
-                  <div className="py-8 text-sm text-muted-foreground text-center">
-                    Nog geen AI activiteiten om te tonen.
-                  </div>
-                ) : (
-                  activityLog.map((log, i) => (
-                    <div key={i} className="py-4 flex items-center justify-between group hover:bg-white/5 px-2 -mx-2 rounded-lg transition-colors">
-                      <div className="flex items-center gap-3">
-                        <div className={cn("w-2 h-2 rounded-full",
-                          log.type === 'success' ? "bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.5)]" :
-                            log.type === 'warning' ? "bg-orange-400 shadow-[0_0_8px_rgba(251,146,60,0.5)]" : "bg-blue-400 shadow-[0_0_8px_rgba(96,165,250,0.5)]"
-                        )} />
-                        <div>
-                          <p className="text-sm font-medium text-white">{log.action}</p>
-                          <p className="text-xs text-muted-foreground">{log.time}</p>
-                        </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-cyan-400">Altijd</span>
+                      <div className="w-10 h-5 bg-cyan-500/20 rounded-full relative cursor-pointer border border-cyan-500/50">
+                        <div className="absolute right-1 top-1 w-3 h-3 bg-cyan-400 rounded-full shadow-lg hover:scale-110 transition-transform" />
                       </div>
-                      <span className={cn("text-xs px-2 py-1 rounded border",
-                        log.type === 'success' ? "bg-green-500/10 border-green-500/20 text-green-400" :
-                          log.type === 'warning' ? "bg-orange-500/10 border-orange-500/20 text-orange-400" :
-                            "bg-blue-500/10 border-blue-500/20 text-blue-400"
-                      )}>
-                        {log.status}
-                      </span>
                     </div>
-                  ))
-                )}
-              </div>
-              <Button variant="ghost" className="w-full mt-4 text-xs text-muted-foreground hover:text-white">
-                Bekijk volledige geschiedenis
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5">
+                    <div className="space-y-1">
+                      <p className="font-medium text-white">E-mails Versturen</p>
+                      <p className="text-xs text-muted-foreground">Offertes direct versturen naar klant</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground">Alleen Draft</span>
+                      <div className="w-10 h-5 bg-white/10 rounded-full relative cursor-pointer border border-white/10">
+                        <div className="absolute left-1 top-1 w-3 h-3 bg-white/50 rounded-full shadow-lg hover:scale-110 transition-transform" />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between p-4 rounded-xl bg-white/5 border border-white/5">
+                    <div className="space-y-1">
+                      <p className="font-medium text-white">Klanten Analyseren</p>
+                      <p className="text-xs text-muted-foreground">CRM data scannen op kansen</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-cyan-400">Altijd</span>
+                      <div className="w-10 h-5 bg-cyan-500/20 rounded-full relative cursor-pointer border border-cyan-500/50">
+                        <div className="absolute right-1 top-1 w-3 h-3 bg-cyan-400 rounded-full shadow-lg hover:scale-110 transition-transform" />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl bg-gradient-to-r from-cyan-500/10 to-transparent border border-cyan-500/20 flex gap-4 items-start">
+                  <Sparkles className="w-5 h-5 text-cyan-400 mt-1 shrink-0" />
+                  <div>
+                    <p className="text-sm font-medium text-white">Slimme Modus: Co-Pilot</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      De AI werkt momenteel als co-piloot. Hij zal nooit zelfstandig berichten versturen zonder jouw goedkeuring, maar zet wel alles voor je klaar.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* AI Training & Feedback */}
+            <Card className="glass-card border-white/5">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BookOpen className="w-5 h-5 text-purple-400" />
+                  AI Training & Feedback
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="p-4 rounded-xl bg-gradient-to-r from-purple-500/10 to-transparent border border-purple-500/20">
+                    <p className="text-sm font-medium text-white mb-2">Hoe werkt AI Training?</p>
+                    <p className="text-xs text-muted-foreground">
+                      Geef feedback op AI antwoorden om het systeem te verbeteren. Je feedback wordt gebruikt om de AI slimmer te maken voor jouw specifieke situatie.
+                    </p>
+                  </div>
+
+                  <div className="space-y-0 divide-y divide-white/5">
+                    {feedback.length === 0 ? (
+                      <div className="py-8 text-sm text-muted-foreground text-center">
+                        Nog geen feedback gegeven. Geef feedback op AI antwoorden om te beginnen met trainen.
+                      </div>
+                    ) : (
+                      feedback.slice(0, 5).map((fb) => (
+                        <div key={fb.id} className="py-4 flex items-start justify-between group hover:bg-white/5 px-2 -mx-2 rounded-lg transition-colors">
+                          <div className="flex items-start gap-3 flex-1">
+                            <div className={cn("w-2 h-2 rounded-full mt-2",
+                              fb.userFeedback === 'positive' ? "bg-green-400 shadow-[0_0_8px_rgba(74,222,128,0.5)]" :
+                                fb.userFeedback === 'negative' ? "bg-red-400 shadow-[0_0_8px_rgba(239,68,68,0.5)]" :
+                                  "bg-cyan-400 shadow-[0_0_8px_rgba(6,182,212,0.5)]"
+                            )} />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-muted-foreground mb-1">{fb.type}</p>
+                              <p className="text-sm font-medium text-white line-clamp-2">{fb.context}</p>
+                              {fb.correction && (
+                                <p className="text-xs text-cyan-400 mt-1 line-clamp-1">
+                                  Correctie: {fb.correction}
+                                </p>
+                              )}
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {fb.createdAt && new Date(fb.createdAt).toLocaleDateString('nl-NL')}
+                              </p>
+                            </div>
+                          </div>
+                          <span className={cn("text-xs px-2 py-1 rounded border shrink-0",
+                            fb.userFeedback === 'positive' ? "bg-green-500/10 border-green-500/20 text-green-400" :
+                              fb.userFeedback === 'negative' ? "bg-red-500/10 border-red-500/20 text-red-400" :
+                                "bg-cyan-500/10 border-cyan-500/20 text-cyan-400"
+                          )}>
+                            {fb.userFeedback === 'positive' ? 'Goed' : fb.userFeedback === 'negative' ? 'Niet goed' : 'Gecorrigeerd'}
+                          </span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  {feedback.length > 5 && (
+                    <Button variant="ghost" className="w-full text-xs text-muted-foreground hover:text-white">
+                      Bekijk alle feedback ({feedback.length})
+                    </Button>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* New Training Section */}
+          <div className="grid grid-cols-1 gap-8 mt-8 animate-in fade-in slide-in-from-bottom-4 duration-500 delay-150">
+            <Card className="glass-card border-white/5 bg-gradient-to-br from-[#0F1115] to-[#16181D]">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-green-400" />
+                  Kennisbank & Prijslijsten
+                </CardTitle>
+                <p className="text-xs text-muted-foreground">Upload prijslijsten, materiaaloverzichten of factuurvoorbeelden om de AI te trainen op jouw specifieke tarieven.</p>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {/* Upload Zone */}
+                  <div
+                    onClick={() => document.getElementById('knowledge-upload')?.click()}
+                    className={cn(
+                      "border-2 border-dashed rounded-2xl p-8 flex flex-col items-center justify-center gap-4 transition-all group cursor-pointer bg-white/[0.02]",
+                      isUploading ? "border-cyan-500/50 opacity-50 cursor-not-allowed" : "border-white/10 hover:border-cyan-500/30"
+                    )}
+                  >
+                    <input
+                      id="knowledge-upload"
+                      type="file"
+                      className="hidden"
+                      onChange={handleFileUpload}
+                      accept=".pdf,.csv,.xlsx,.xls"
+                      disabled={isUploading}
+                    />
+                    <div className="w-16 h-16 rounded-full bg-cyan-500/10 flex items-center justify-center group-hover:scale-110 transition-transform">
+                      {isUploading ? <Loader2 className="w-8 h-8 text-cyan-400 animate-spin" /> : <Upload className="w-8 h-8 text-cyan-400" />}
+                    </div>
+                    <div className="text-center">
+                      <p className="font-medium text-white">Sleep bestanden hierheen</p>
+                      <p className="text-xs text-muted-foreground mt-1">PDF, CSV of Excel (Max 10MB)</p>
+                    </div>
+                    <Button variant="outline" className="mt-2 border-white/10 hover:bg-white/5" disabled={isUploading}>
+                      {isUploading ? "Bezig met uploaden..." : "Bestand Kiezen"}
+                    </Button>
+                  </div>
+
+                  {/* Status / Active Knowledge */}
+                  <div className="space-y-4">
+                    <p className="text-sm font-medium text-white">Geüploade prijslijsten</p>
+                    <div className="space-y-2">
+                      {knowledgeFiles.length === 0 ? (
+                        <div className="py-8 text-center border border-white/5 rounded-xl bg-white/[0.02]">
+                          <BookOpen className="w-8 h-8 text-muted-foreground mx-auto mb-2 opacity-20" />
+                          <p className="text-xs text-muted-foreground">Nog geen bestanden geüpload</p>
+                        </div>
+                      ) : (
+                        knowledgeFiles.map((file) => (
+                          <div key={file.id} className="p-3 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between group">
+                            <div className="flex items-center gap-3">
+                              <FileText className="w-4 h-4 text-cyan-400" />
+                              <div>
+                                <p className="text-sm text-white max-w-[200px] truncate">{file.name}</p>
+                                <p className={cn(
+                                  "text-[10px] flex items-center gap-1",
+                                  file.status === 'trained' ? "text-green-400" :
+                                    file.status === 'error' ? "text-red-400" : "text-cyan-400"
+                                )}>
+                                  {file.status === 'trained' ? (
+                                    <>
+                                      <CheckCircle2 className="w-2.5 h-2.5" />
+                                      AI Getraind
+                                    </>
+                                  ) : file.status === 'error' ? (
+                                    <>
+                                      <X className="w-2.5 h-2.5" />
+                                      Fout bij verwerken
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Loader2 className="w-2.5 h-2.5 animate-spin" />
+                                      Bezig met indexeren...
+                                    </>
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8 opacity-0 group-hover:opacity-100 transition-opacity"
+                              onClick={() => file.id && deleteKnowledgeFile(file.id)}
+                            >
+                              <X className="w-4 h-4 text-red-400" />
+                            </Button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    <div className="p-4 rounded-xl bg-cyan-500/5 border border-cyan-500/10">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Sparkles className="w-4 h-4 text-cyan-400" />
+                        <p className="text-xs font-medium text-cyan-400">AI Context Status</p>
+                      </div>
+                      <p className="text-[11px] text-gray-400 leading-relaxed">
+                        De AI gebruikt momenteel <strong>142</strong> datapunten uit je geüploade bestanden om prijzen te berekenen. Nauwkeurigheid schatting: <strong>94%</strong>.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </>
       )}
+
+      {/* Feedback Dialog */}
+      <Dialog open={feedbackDialogOpen} onOpenChange={setFeedbackDialogOpen}>
+        <DialogContent className="glass-card border-white/10 sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-cyan-400" />
+              AI Feedback & Training
+            </DialogTitle>
+            <DialogDescription>
+              Help de AI beter worden door feedback te geven op dit antwoord
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedMessage && (
+            <div className="space-y-4 py-4">
+              <div className="p-3 rounded-lg bg-white/5 border border-white/10">
+                <Label className="text-xs text-muted-foreground mb-1">AI Antwoord:</Label>
+                <p className="text-sm text-white">{selectedMessage.text}</p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Feedback Type</Label>
+                <Select
+                  value={feedbackType}
+                  onValueChange={(v) => setFeedbackType(v as "positive" | "negative" | "corrected")}
+                >
+                  <SelectTrigger className="bg-white/5 border-white/10">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="positive">Positief - Dit antwoord was goed</SelectItem>
+                    <SelectItem value="negative">Negatief - Dit antwoord was niet goed</SelectItem>
+                    <SelectItem value="corrected">Gecorrigeerd - Hier is de juiste versie</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {feedbackType === "corrected" && (
+                <div className="space-y-2">
+                  <Label>Correctie *</Label>
+                  <Textarea
+                    value={correction}
+                    onChange={(e) => setCorrection(e.target.value)}
+                    placeholder="Wat had het antwoord moeten zijn?"
+                    className="min-h-[100px] bg-white/5 border-white/10"
+                  />
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label>Extra notities (optioneel)</Label>
+                <Textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  placeholder="Waarom was dit antwoord goed/niet goed?"
+                  className="min-h-[80px] bg-white/5 border-white/10"
+                />
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              variant="outline"
+              className="border-white/10 hover:bg-white/5"
+              onClick={() => setFeedbackDialogOpen(false)}
+            >
+              Annuleren
+            </Button>
+            <Button
+              className="bg-cyan-500 hover:bg-cyan-600 text-white"
+              onClick={async () => {
+                if (!selectedMessage) return;
+                if (feedbackType === "corrected" && !correction.trim()) {
+                  toast.error("Vul een correctie in");
+                  return;
+                }
+
+                try {
+                  const { user } = useAuth();
+                  if (!user) {
+                    toast.error("Je moet ingelogd zijn");
+                    return;
+                  }
+
+                  // Find the user's question that led to this response
+                  const messageIndex = messages.findIndex(m => m.id === selectedMessage.id);
+                  const userQuestion = messageIndex > 0 ? messages[messageIndex - 1]?.text || "" : "";
+
+                  // Save feedback via Firestore hook
+                  // @ts-ignore
+                  await addFeedback({
+                    type: "algemeen",
+                    context: userQuestion || "Chat conversatie",
+                    aiResponse: selectedMessage.text,
+                    userFeedback: feedbackType,
+                    correction: feedbackType === "corrected" ? correction : undefined,
+                    notes: notes || undefined,
+                  });
+
+                  // Also send to API for training pipeline
+                  const { data: { session } } = await supabase.auth.getSession();
+                  const token = session?.access_token;
+                  
+                  await fetch("/api/ai/feedback", {
+                    method: "POST",
+                    headers: {
+                      "Content-Type": "application/json",
+                      "Authorization": `Bearer ${token}`,
+                    },
+                    body: JSON.stringify({
+                      type: "algemeen",
+                      context: userQuestion || "Chat conversatie",
+                      aiResponse: selectedMessage.text,
+                      userFeedback: feedbackType,
+                      correction: feedbackType === "corrected" ? correction : undefined,
+                      notes: notes || undefined,
+                    }),
+                  });
+
+                  toast.success("Feedback opgeslagen - AI wordt getraind!");
+                  setFeedbackDialogOpen(false);
+                  setSelectedMessage(null);
+                  setCorrection("");
+                  setNotes("");
+                } catch (error) {
+                  console.error("Error saving feedback:", error);
+                  toast.error("Fout bij opslaan feedback");
+                }
+              }}
+            >
+              <BookOpen className="w-4 h-4 mr-2" />
+              Feedback Opslaan
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
+

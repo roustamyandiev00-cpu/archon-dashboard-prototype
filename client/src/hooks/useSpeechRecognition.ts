@@ -66,7 +66,7 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}) 
     recognition.onerror = (event: any) => {
       const error = event.error;
       setIsListening(false);
-      
+
       let errorMessage = "Spraakherkenning fout";
       if (error === "no-speech") {
         errorMessage = "Geen spraak gedetecteerd";
@@ -92,26 +92,44 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}) 
 
     return () => {
       if (recognitionRef.current) {
-        recognitionRef.current.stop();
+        try {
+          recognitionRef.current.stop();
+          recognitionRef.current.onstart = null;
+          recognitionRef.current.onresult = null;
+          recognitionRef.current.onerror = null;
+          recognitionRef.current.onend = null;
+        } catch (e) {
+          console.error("Error cleaning up speech recognition:", e);
+        }
       }
     };
   }, [lang, continuous, interimResults, onResult, onError]);
 
   const startListening = () => {
     if (!recognitionRef.current) {
-      toast.error("Spraakherkenning niet beschikbaar in deze browser");
+      if (typeof window !== "undefined" && !((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)) {
+        toast.error("Spraakherkenning wordt niet ondersteund in deze browser. Gebruik Chrome of Edge.");
+      } else {
+        toast.error("Spraakherkenning onbekende fout.");
+      }
       return;
     }
 
     try {
+      setIsListening(true); // Voorlopig alvast op true zetten voor UI feedback
       recognitionRef.current.start();
-      toast.info("Luisteren...", { duration: 1000 });
+      toast.info("Aan het luisteren...", {
+        duration: 2000,
+        position: 'top-center'
+      });
     } catch (error: any) {
+      setIsListening(false);
       if (error.name === "InvalidStateError") {
-        // Already listening
+        // Al bezig, negeer
         return;
       }
-      toast.error("Kon niet starten met luisteren");
+      console.error("Start listening error:", error);
+      toast.error("Kon microfoon niet activeren");
     }
   };
 
@@ -131,7 +149,7 @@ export function useSpeechRecognition(options: UseSpeechRecognitionOptions = {}) 
     startListening,
     stopListening,
     resetTranscript,
-    isSupported: typeof window !== "undefined" && 
+    isSupported: typeof window !== "undefined" &&
       (!!(window as any).SpeechRecognition || !!(window as any).webkitSpeechRecognition),
   };
 }

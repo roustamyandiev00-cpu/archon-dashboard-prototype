@@ -1,0 +1,67 @@
+{
+  "buildCommand": "npm run build:vercel",
+  "outputDirectory": "dist/client",
+  "rewrites": [
+    {
+      "source": "/api/create-checkout-session",
+      "destination": "/api/billing/checkout"
+    },
+    {
+      "source": "/api/create-portal-session",
+      "destination": "/api/billing/portal"
+    },
+    {
+      "source": "/api/cancel-subscription",
+      "destination": "/api/billing/cancel"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ],
+  "functions": {
+    "api/billing/*.ts": {
+      "memory": 1024,
+      "maxDuration": 15
+    },
+    "api/assistant.ts": {
+      "memory": 1024,
+      "maxDuration": 30
+    },
+    "api/ai/*.ts": {
+      "memory": 1024,
+      "maxDuration": 30
+    },
+    "api/offertes/generate.ts": {
+      "memory": 1024,
+      "maxDuration": 60
+    },
+    "api/offertes/upload-photos.ts": {
+      "memory": 1024,
+      "maxDuration": 30
+    }
+  },
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        {
+          "key": "Access-Control-Allow-Credentials",
+          "value": "true"
+        },
+        {
+          "key": "Access-Control-Allow-Origin",
+          "value": "*"
+        },
+        {
+          "key": "Access-Control-Allow-Methods",
+          "value": "GET,OPTIONS,PATCH,DELETE,POST,PUT"
+        },
+        {
+          "key": "Access-Control-Allow-Headers",
+          "value": "X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version"
+        }
+      ]
+    }
+  ]
+}

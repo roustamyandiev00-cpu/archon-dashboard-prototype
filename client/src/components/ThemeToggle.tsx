@@ -8,11 +8,26 @@ export function ThemeToggle() {
   const { theme, toggleTheme } = useTheme();
   const isDark = theme === "dark";
 
+  const handleClick = () => {
+    console.log('Current theme:', theme);
+    console.log('Switching to:', isDark ? 'light' : 'dark');
+    if (toggleTheme) {
+      toggleTheme();
+      // Force update after a short delay
+      setTimeout(() => {
+        const newTheme = isDark ? 'light' : 'dark';
+        document.documentElement.classList.remove('light', 'dark');
+        document.documentElement.classList.add(newTheme);
+        console.log('Theme switched to:', newTheme);
+      }, 100);
+    }
+  };
+
   return (
     <Button
       variant="outline"
       size="sm"
-      onClick={toggleTheme}
+      onClick={handleClick}
       className={cn(
         "relative overflow-hidden border border-border transition-all duration-300",
         isDark

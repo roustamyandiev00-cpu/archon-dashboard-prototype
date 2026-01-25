@@ -55,7 +55,8 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import PageHeader from "@/components/PageHeader";
 import { exportToCsv, openPrintableDocument } from "@/lib/file";
-import { useFacturen, useKlanten, type Factuur as FirestoreFactuur } from "@/lib/api-firestore";
+import { downloadFactuurPdf, sendFactuurEmail, sendReminderEmail } from "@/services/documentService";
+import { useFacturen, useKlanten, type Factuur as SupabaseFactuur } from "@/lib/api-supabase";
 
 interface Factuur {
   id: string;
@@ -152,7 +153,7 @@ export default function Facturen() {
   // Gebruik Firestore hooks voor real-time data
   const { facturen: firestoreFacturen, loading, createFactuur, updateFactuur, deleteFactuur } = useFacturen();
   const { klanten } = useKlanten();
-  
+
   // Converteer Firestore facturen naar lokale Factuur interface
   const facturen: Factuur[] = firestoreFacturen.map(f => ({
     id: f.id || '',
@@ -161,9 +162,9 @@ export default function Facturen() {
     bedrag: f.totaal || 0,
     datum: f.datum || '',
     vervaldatum: f.vervaldatum || '',
-    status: f.status === 'betaald' ? 'betaald' : 
-            f.status === 'verzonden' ? 'openstaand' : 
-            f.status === 'vervallen' ? 'overtijd' : 'concept',
+    status: f.status === 'betaald' ? 'betaald' :
+      f.status === 'verzonden' ? 'openstaand' :
+        f.status === 'vervallen' ? 'overtijd' : 'concept',
     items: f.regels?.length || 0
   }));
 
@@ -240,9 +241,9 @@ export default function Facturen() {
     // Zoek klantId op basis van klantNaam
     const matchingKlant = klanten.find(k => k.naam === formState.klant.trim());
     const klantId = matchingKlant?.id || '';
-    
-    // Converteer naar Firestore formaat
-    const firestorePayload: Omit<FirestoreFactuur, 'id' | 'factuurNummer' | 'createdAt' | 'updatedAt'> = {
+
+    // Converteer naar Supabase formaat
+    const supabasePayload: Omit<SupabaseFactuur, 'id' | 'factuurNummer' | 'createdAt' | 'updatedAt'> = {
       klantId: klantId || formState.klant.trim(), // Fallback naar naam als ID niet gevonden
       klantNaam: formState.klant.trim(),
       datum: formState.datum,
@@ -257,16 +258,16 @@ export default function Facturen() {
       btwBedrag: bedrag - (bedrag / 1.21),
       totaal: bedrag,
       status: formState.status === 'betaald' ? 'betaald' :
-              formState.status === 'openstaand' ? 'verzonden' :
-              formState.status === 'overtijd' ? 'vervallen' : 'concept',
+        formState.status === 'openstaand' ? 'verzonden' :
+          formState.status === 'overtijd' ? 'vervallen' : 'concept',
     };
 
     try {
       if (activeFactuur && activeFactuur.id) {
-        await updateFactuur(activeFactuur.id, firestorePayload);
+        await updateFactuur(activeFactuur.id, supabasePayload);
         toast.success("Factuur bijgewerkt", { description: `${formState.nummer} is aangepast.` });
       } else {
-        await createFactuur(firestorePayload);
+        await createFactuur(supabasePayload);
         toast.success("Factuur toegevoegd", { description: `Factuur is aangemaakt.` });
       }
       setFormOpen(false);
@@ -300,9 +301,9 @@ export default function Facturen() {
     try {
       await updateFactuur(factuur.id, {
         vervaldatum: newDueDate,
-        status: newStatus === 'betaald' ? 'betaald' : 
-                newStatus === 'openstaand' ? 'verzonden' :
-                newStatus === 'overtijd' ? 'vervallen' : 'concept',
+        status: newStatus === 'betaald' ? 'betaald' :
+          newStatus === 'openstaand' ? 'verzonden' :
+            newStatus === 'overtijd' ? 'vervallen' : 'concept',
       });
       toast.success("Herinnering verzonden", {
         description: `Nieuwe vervaldatum: ${new Date(newDueDate).toLocaleDateString("nl-NL")}`,
@@ -324,36 +325,45 @@ export default function Facturen() {
     }
   };
 
-  const handleDownload = (factuur: Factuur) => {
-    openPrintableDocument(
-      `Factuur ${factuur.nummer}`,
-      `
-        <h1>Factuur ${factuur.nummer}</h1>
-        <div class="muted">Klant: ${factuur.klant}</div>
-        <div class="muted">Datum: ${new Date(factuur.datum).toLocaleDateString("nl-NL")}</div>
-        <div class="muted">Vervaldatum: ${new Date(factuur.vervaldatum).toLocaleDateString("nl-NL")}</div>
-        <div class="section">
-          <h2>Overzicht</h2>
-          <table>
-            <thead>
-              <tr>
-                <th>Items</th>
-                <th>Status</th>
-                <th>Bedrag</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td>${factuur.items}</td>
-                <td>${statusConfig[factuur.status].label}</td>
-                <td>€${factuur.bedrag.toLocaleString("nl-NL", { minimumFractionDigits: 2 })}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-        <div class="section total">Totaal: €${factuur.bedrag.toLocaleString("nl-NL", { minimumFractionDigits: 2 })}</div>
-      `
-    );
+  const handleDownload = async (factuur: Factuur) => {
+    try {
+      toast.loading("PDF wordt gegenereerd...", { id: "pdf-download" });
+      await downloadFactuurPdf(factuur.id, factuur.nummer);
+      toast.success("PDF gedownload!", { id: "pdf-download" });
+    } catch (error) {
+      console.warn("PDF API niet beschikbaar, fallback naar print:", error);
+      toast.dismiss("pdf-download");
+      // Fallback to printable document
+      openPrintableDocument(
+        `Factuur ${factuur.nummer}`,
+        `
+          <h1>Factuur ${factuur.nummer}</h1>
+          <div class="muted">Klant: ${factuur.klant}</div>
+          <div class="muted">Datum: ${new Date(factuur.datum).toLocaleDateString("nl-NL")}</div>
+          <div class="muted">Vervaldatum: ${new Date(factuur.vervaldatum).toLocaleDateString("nl-NL")}</div>
+          <div class="section">
+            <h2>Overzicht</h2>
+            <table>
+              <thead>
+                <tr>
+                  <th>Items</th>
+                  <th>Status</th>
+                  <th>Bedrag</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>${factuur.items}</td>
+                  <td>${statusConfig[factuur.status].label}</td>
+                  <td>€${factuur.bedrag.toLocaleString("nl-NL", { minimumFractionDigits: 2 })}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="section total">Totaal: €${factuur.bedrag.toLocaleString("nl-NL", { minimumFractionDigits: 2 })}</div>
+        `
+      );
+    }
   };
 
   return (
@@ -717,7 +727,7 @@ export default function Facturen() {
       </motion.div>
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="glass-card border-white/10 sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg bg-[#0B0D12]/80 backdrop-blur-2xl border border-white/10 shadow-2xl shadow-black/50">
           <DialogHeader>
             <DialogTitle>{activeFactuur ? "Factuur bewerken" : "Nieuwe factuur"}</DialogTitle>
             <DialogDescription>
@@ -805,7 +815,7 @@ export default function Facturen() {
       </Dialog>
 
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="glass-card border-white/10 sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg bg-[#0B0D12]/80 backdrop-blur-2xl border border-white/10 shadow-2xl shadow-black/50">
           <DialogHeader>
             <DialogTitle>Factuur details</DialogTitle>
             <DialogDescription>Bekijk de gegevens en acties voor deze factuur.</DialogDescription>

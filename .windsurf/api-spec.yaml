@@ -1,0 +1,757 @@
+openapi: 3.0.3
+info:
+  title: Archon Dashboard API
+  description: API voor Archon bouwsoftware dashboard - facturatie, projecten, klanten en CRM
+  version: 1.0.0
+  contact:
+    name: Archon Support
+    email: support@archon.ai
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:3007
+    description: Development server
+  - url: https://archonpro.com
+    description: Production server
+
+tags:
+  - name: auth
+    description: Authenticatie en user management
+  - name: klanten
+    description: Klantenbeheer
+  - name: facturen
+    description: Facturatie
+  - name: projecten
+    description: Projectmanagement
+  - name: offertes
+    description: Offertes
+  - name: transacties
+    description: Financiële transacties
+
+paths:
+  /auth/login:
+    post:
+      tags:
+        - auth
+      summary: User login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/register:
+    post:
+      tags:
+        - auth
+      summary: User registration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Registration successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /klanten:
+    get:
+      tags:
+        - klanten
+      summary: Get all customers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+      responses:
+        '200':
+          description: List of customers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Klant'
+                  total:
+                    type: integer
+    post:
+      tags:
+        - klanten
+      summary: Create new customer
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateKlantRequest'
+      responses:
+        '201':
+          description: Customer created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Klant'
+
+  /klanten/{id}:
+    get:
+      tags:
+        - klanten
+      summary: Get customer by ID
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Customer details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Klant'
+        '404':
+          description: Customer not found
+    put:
+      tags:
+        - klanten
+      summary: Update customer
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateKlantRequest'
+      responses:
+        '200':
+          description: Customer updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Klant'
+    delete:
+      tags:
+        - klanten
+      summary: Delete customer
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Customer deleted
+
+  /projecten:
+    get:
+      tags:
+        - projecten
+      summary: Get all projects
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [Planning, Actief, Afgerond, "On Hold"]
+      responses:
+        '200':
+          description: List of projects
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Project'
+                  total:
+                    type: integer
+    post:
+      tags:
+        - projecten
+      summary: Create new project
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectRequest'
+      responses:
+        '201':
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Project'
+
+  /facturen:
+    get:
+      tags:
+        - facturen
+      summary: Get all invoices
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, openstaand, betaald, overtijd]
+      responses:
+        '200':
+          description: List of invoices
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Factuur'
+                  total:
+                    type: integer
+
+  /transacties:
+    get:
+      tags:
+        - transacties
+      summary: Get all transactions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [inkomst, uitgave]
+      responses:
+        '200':
+          description: List of transactions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Transactie'
+                  total:
+                    type: integer
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        display_name:
+          type: string
+        avatar_url:
+          type: string
+          format: uri
+        created_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - email
+
+    Klant:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        naam:
+          type: string
+          minLength: 1
+        email:
+          type: string
+          format: email
+        telefoon:
+          type: string
+        adres:
+          type: string
+        postcode:
+          type: string
+        plaats:
+          type: string
+        land:
+          type: string
+        bedrijf:
+          type: string
+        kvkNummer:
+          type: string
+        btwNummer:
+          type: string
+        contactpersoon:
+          type: string
+        notities:
+          type: string
+        type:
+          type: string
+          enum: ["particulier", "zakelijk"]
+        status:
+          type: string
+          enum: ["actief", "inactief"]
+        totaalOmzet:
+          type: number
+          minimum: 0
+        laatsteFactuur:
+          type: string
+          format: date
+        avatar:
+          type: string
+          format: uri
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - user_id
+        - naam
+        - email
+        - type
+        - status
+
+    CreateKlantRequest:
+      type: object
+      properties:
+        naam:
+          type: string
+          minLength: 1
+        email:
+          type: string
+          format: email
+        telefoon:
+          type: string
+        adres:
+          type: string
+        postcode:
+          type: string
+        plaats:
+          type: string
+        land:
+          type: string
+        bedrijf:
+          type: string
+        kvkNummer:
+          type: string
+        btwNummer:
+          type: string
+        contactpersoon:
+          type: string
+        notities:
+          type: string
+        type:
+          type: string
+          enum: ["particulier", "zakelijk"]
+      required:
+        - naam
+        - email
+        - type
+
+    UpdateKlantRequest:
+      type: object
+      properties:
+        naam:
+          type: string
+          minLength: 1
+        email:
+          type: string
+          format: email
+        telefoon:
+          type: string
+        adres:
+          type: string
+        postcode:
+          type: string
+        plaats:
+          type: string
+        land:
+          type: string
+        bedrijf:
+          type: string
+        kvkNummer:
+          type: string
+        btwNummer:
+          type: string
+        contactpersoon:
+          type: string
+        notities:
+          type: string
+        type:
+          type: string
+          enum: ["particulier", "zakelijk"]
+        status:
+          type: string
+          enum: ["actief", "inactief"]
+
+    Project:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 1
+        client_id:
+          type: string
+          format: uuid
+        client_name:
+          type: string
+        location:
+          type: string
+        budget:
+          type: number
+          minimum: 0
+        spent:
+          type: number
+          minimum: 0
+        status:
+          type: string
+          enum: [Planning, Actief, Afgerond, "On Hold"]
+        progress:
+          type: number
+          minimum: 0
+          maximum: 100
+        deadline:
+          type: string
+          format: date
+        image:
+          type: string
+          format: uri
+        payment_milestones:
+          type: array
+          items:
+            $ref: '#/components/schemas/PaymentMilestone'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - user_id
+        - name
+        - client_id
+        - client_name
+        - budget
+        - status
+
+    CreateProjectRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+        client_id:
+          type: string
+          format: uuid
+        client_name:
+          type: string
+        location:
+          type: string
+        budget:
+          type: number
+          minimum: 0
+        deadline:
+          type: string
+          format: date
+        image:
+          type: string
+          format: uri
+      required:
+        - name
+        - client_id
+        - client_name
+        - budget
+
+    PaymentMilestone:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        amount:
+          type: number
+          minimum: 0
+        due_date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [open, verzonden, betaald]
+        percentage:
+          type: number
+          minimum: 0
+          maximum: 100
+      required:
+        - id
+        - name
+        - amount
+        - due_date
+        - status
+        - percentage
+
+    Factuur:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        number:
+          type: string
+        client_id:
+          type: string
+          format: uuid
+        client_name:
+          type: string
+        amount:
+          type: number
+          minimum: 0
+        date:
+          type: string
+          format: date
+        due_date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [draft, openstaand, betaald, overtijd]
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/FactuurRegel'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - user_id
+        - number
+        - client_id
+        - client_name
+        - amount
+        - date
+        - due_date
+        - status
+
+    FactuurRegel:
+      type: object
+      properties:
+        beschrijving:
+          type: string
+          minLength: 1
+        aantal:
+          type: number
+          minimum: 0
+        prijs:
+          type: number
+          minimum: 0
+        btw:
+          type: number
+          minimum: 0
+          maximum: 100
+      required:
+        - beschrijving
+        - aantal
+        - prijs
+        - btw
+
+    Transactie:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        titel:
+          type: string
+        beschrijving:
+          type: string
+          minLength: 1
+        bedrag:
+          type: number
+        type:
+          type: string
+          enum: [inkomst, uitgave]
+        categorie:
+          type: string
+        datum:
+          type: string
+          format: date
+        icon_key:
+          type: string
+        rekening:
+          type: string
+        referentie:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      required:
+        - id
+        - user_id
+        - beschrijving
+        - bedrag
+        - type
+        - datum
+
+    LoginRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+      required:
+        - email
+        - password
+
+    RegisterRequest:
+      type: object
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 6
+        display_name:
+          type: string
+          minLength: 1
+      required:
+        - email
+        - password
+        - display_name
+
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        session:
+          type: object
+          properties:
+            access_token:
+              type: string
+            refresh_token:
+              type: string
+            expires_at:
+              type: integer
+        message:
+          type: string
+      required:
+        - user
+        - session
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        code:
+          type: string
+      required:
+        - error
+        - message

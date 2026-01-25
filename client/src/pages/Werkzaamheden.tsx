@@ -384,7 +384,7 @@ export default function Werkzaamheden() {
       </motion.div>
 
       <Dialog open={formOpen} onOpenChange={setFormOpen}>
-        <DialogContent className="glass-card border-white/10 sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg bg-[#0B0D12]/80 backdrop-blur-2xl border border-white/10 shadow-2xl shadow-black/50">
           <DialogHeader>
             <DialogTitle>{activeItem ? "Werkzaamheid bewerken" : "Nieuwe werkzaamheid"}</DialogTitle>
             <DialogDescription>Leg de standaardprijs en categorie vast.</DialogDescription>
@@ -476,7 +476,7 @@ export default function Werkzaamheden() {
       </Dialog>
 
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="glass-card border-white/10 sm:max-w-lg">
+        <DialogContent className="sm:max-w-lg bg-[#0B0D12]/80 backdrop-blur-2xl border border-white/10 shadow-2xl shadow-black/50">
           <DialogHeader>
             <DialogTitle>Werkzaamheid details</DialogTitle>
             <DialogDescription>Bekijk de details van dit item.</DialogDescription>

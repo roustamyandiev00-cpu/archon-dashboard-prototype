@@ -17,21 +17,36 @@ export default function Modules() {
   const [, navigate] = useLocation();
   const [selected, setSelected] = useState<ModuleKey[]>([]);
   const [isSaving, setIsSaving] = useState(false);
+  const [hasAutoSelected, setHasAutoSelected] = useState(false);
 
+  const userPlan = profile?.plan;
+  const availableModules = useMemo(() => 
+    userPlan ? getModulesForPlan(userPlan) : [], 
+    [userPlan]
+  );
+  
+  // ✅ FIX: Auto-select all modules for new users
   useEffect(() => {
+    // If profile has existing modules, use those
     if (profile?.modules && profile.modules.length > 0) {
       setSelected(profile.modules as ModuleKey[]);
+      setHasAutoSelected(true);
+      return;
     }
-  }, [profile]);
+    
+    // Auto-select all available modules for new users (only once)
+    if (!hasAutoSelected && userPlan && availableModules.length > 0) {
+      console.log("🔧 Auto-selecting all modules for new user:", availableModules);
+      setSelected(availableModules);
+      setHasAutoSelected(true);
+    }
+  }, [profile?.modules, userPlan, availableModules, hasAutoSelected]);
 
   const selectedSet = useMemo(() => new Set(selected), [selected]);
   const isBillingActive =
     profile?.billingStatus === "active" || profile?.billingStatus === "trialing" || profile?.billingStatus === "pending";
   const canEnterApp =
     profile?.billingStatus === "active" || profile?.billingStatus === "trialing";
-  
-  const userPlan = profile?.plan;
-  const availableModules = userPlan ? getModulesForPlan(userPlan) : [];
 
   const toggleModule = (key: ModuleKey) => {
     if (!availableModules.includes(key)) {
@@ -233,7 +248,7 @@ export default function Modules() {
               ) : (
                 <>
                   <CheckCircle2 className="w-4 h-4 mr-2" />
-                  Modules Opslaan
+                  Modules Opslaan & Ga naar Dashboard
                 </>
               )}
             </Button>

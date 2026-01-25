@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { doc, getDoc, serverTimestamp, setDoc } from "@/lib/firebase";
-import { db } from "@/lib/firebase";
+import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/contexts/AuthContext";
 
 export const useStoredState = <T,>(key: string, initialValue: T) => {
@@ -25,18 +24,36 @@ export const useStoredState = <T,>(key: string, initialValue: T) => {
 
     const load = async () => {
       try {
-        const ref = doc(db, "users", user.uid, "state", key);
-        const snapshot = await getDoc(ref);
+        const isDemoMode = import.meta.env.VITE_DEMO_MODE === "true";
+        
+        if (isDemoMode) {
+          // In demo mode, use localStorage
+          const storageKey = `demo_state_${user.id}_${key}`;
+          const stored = localStorage.getItem(storageKey);
+          if (stored) {
+            const value = JSON.parse(stored) as T;
+            setState(value);
+          } else {
+            setState(initialValue);
+          }
+          loadedRef.current = true;
+          return;
+        }
+
+        // Use Supabase for non-demo mode
+        const { data, error } = await supabase
+          .from('user_state')
+          .select('value')
+          .eq('user_id', user.id)
+          .eq('key', key)
+          .single();
 
         if (!active) {
           return;
         }
 
-        if (snapshot.exists()) {
-          const value = snapshot.data()?.value as T | undefined;
-          if (value !== undefined) {
-            setState(value);
-          }
+        if (data && !error) {
+          setState(data.value as T);
         } else {
           setState(initialValue);
         }
@@ -56,22 +73,39 @@ export const useStoredState = <T,>(key: string, initialValue: T) => {
     return () => {
       active = false;
     };
-  }, [authLoading, user?.uid, key, initialValue]);
+  }, [authLoading, user?.id, key, initialValue]);
 
   useEffect(() => {
     if (authLoading || !user || !loadedRef.current) {
       return;
     }
 
-    const ref = doc(db, "users", user.uid, "state", key);
-    setDoc(
-      ref,
-      {
-        value: state,
-        updatedAt: serverTimestamp()
-      },
-      { merge: true }
-    );
+    const save = async () => {
+      try {
+        const isDemoMode = import.meta.env.VITE_DEMO_MODE === "true";
+        
+        if (isDemoMode) {
+          // In demo mode, use localStorage
+          const storageKey = `demo_state_${user.id}_${key}`;
+          localStorage.setItem(storageKey, JSON.stringify(state));
+          return;
+        }
+
+        // Use Supabase for non-demo mode
+        await supabase
+          .from('user_state')
+          .upsert({
+            user_id: user.id,
+            key: key,
+            value: state,
+            updated_at: new Date().toISOString()
+          });
+      } catch (error) {
+        console.error('Failed to save state:', error);
+      }
+    };
+
+    save();
   }, [authLoading, user, key, state]);
 
   return [state, setState] as const;

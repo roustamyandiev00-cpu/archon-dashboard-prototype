@@ -18,7 +18,8 @@ import {
   CheckCircle2,
   Upload,
   X,
-  Camera
+  Camera,
+  Clock
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -57,7 +58,7 @@ export default function Instellingen() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form state
-  const [displayName, setDisplayName] = useState(profile?.name || user?.displayName || "");
+  const [displayName, setDisplayName] = useState(profile?.name || user?.user_metadata?.display_name || "");
   const [emailNotifications, setEmailNotifications] = useState(true);
   const [pushNotifications, setPushNotifications] = useState(false);
 
@@ -122,11 +123,11 @@ export default function Instellingen() {
   };
 
   const getAvatarUrl = () => {
-    return profile?.avatar || user?.photoURL || undefined;
+    return profile?.avatar || user?.user_metadata?.avatar_url || undefined;
   };
 
   const getAvatarFallback = () => {
-    const name = profile?.name || user?.displayName || user?.email || "U";
+    const name = profile?.name || user?.user_metadata?.display_name || user?.email || "U";
     return name.charAt(0).toUpperCase();
   };
 
@@ -215,7 +216,7 @@ export default function Instellingen() {
             <div className="flex items-center gap-6">
               <div className="relative">
                 <Avatar className="w-24 h-24 border-2 border-white/20">
-                  <AvatarImage src={getAvatarUrl()} alt={profile?.name || user?.displayName || ""} />
+                  <AvatarImage src={getAvatarUrl()} alt={profile?.name || user?.user_metadata?.display_name || ""} />
                   <AvatarFallback className="bg-cyan-500/20 text-cyan-400 text-2xl">
                     {getAvatarFallback()}
                   </AvatarFallback>
@@ -352,6 +353,23 @@ export default function Instellingen() {
                 </Badge>
               )}
             </div>
+
+            {billingStatus === "trialing" && (
+              <div className="p-4 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-start gap-3">
+                <Clock className="w-5 h-5 text-blue-400 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium text-blue-400">Proefperiode actief</p>
+                  <p className="text-sm text-blue-400/80 mt-1">
+                    Je gratis proefperiode loopt nog 14 dagen. Na afloop wordt automatisch
+                    je abonnement geactiveerd en gefactureerd via je gekozen betaalmethode (creditcard of SEPA).
+                  </p>
+                  <div className="flex items-center gap-2 mt-3 text-xs text-blue-400/60">
+                    <CreditCard className="w-3 h-3" />
+                    <span>Automatische incasso na proefperiode</span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {billingStatus === "past_due" && (
               <div className="p-4 rounded-lg bg-orange-500/10 border border-orange-500/20 flex items-start gap-3">

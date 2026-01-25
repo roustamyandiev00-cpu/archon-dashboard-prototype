@@ -1,0 +1,39 @@
+# Exclude all API endpoints not needed for Vercel deployment (Hobby plan limit: 12)
+api/email/
+api/facturen/
+api/files/
+api/gebruikers/
+api/klanten/
+api/projecten/
+api/errors.ts
+
+# Specifically ignore non-essential files in offertes
+api/offertes/index.ts
+api/offertes/[id].ts
+api/offertes/pdf.ts
+
+# Ensure dependencies and essential endpoints ARE included
+!api/lib/
+!api/billing/
+!api/ai/
+!api/assistant.ts
+!api/offertes/generate.ts
+!api/offertes/upload-photos.ts
+
+# Development files
+.firebase/
+dataconnect/
+functions/
+scripts/
+docs/
+
+# Documentation
+*.md
+!README.md
+
+# Config files not needed
+firebase.json
+.firebaserc
+firestore.rules
+firestore.indexes.json
+storage.rules

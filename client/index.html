@@ -1,44 +1,71 @@
 <!doctype html>
 <html lang="nl">
 
-  <head>
-    <meta charset="UTF-8" />
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1.0, maximum-scale=1" />
-    <title>ARCHON.AI | Bouwsoftware voor facturatie, projecten en financieel inzicht</title>
-    <meta
-      name="description"
-      content="Alles-in-een bouwsoftware voor facturatie, projectmanagement, planning en financieel inzicht. Archon helpt bouwbedrijven sneller offreren en slimmer samenwerken." />
-    <meta name="robots" content="index, follow" />
-    <meta name="author" content="ARCHON.AI" />
-    <meta name="application-name" content="ARCHON.AI" />
-    <meta name="theme-color" content="#0a0a0a" />
-    <link rel="canonical" href="https://archon.ai/" />
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, viewport-fit=cover" />
+  <title>ARCHON.AI | Bouwsoftware voor facturatie, projecten en financieel inzicht</title>
+  <meta name="description"
+    content="Alles-in-een bouwsoftware voor facturatie, projectmanagement, planning en financieel inzicht. Archon helpt bouwbedrijven sneller offreren en slimmer samenwerken." />
+  <meta name="robots" content="index, follow" />
+  <meta name="author" content="ARCHON.AI" />
+  <meta name="application-name" content="ARCHON.AI" />
+  <meta name="theme-color" content="#06b6d4" />
+  <link rel="canonical" href="https://archon.ai/" />
 
-    <meta property="og:locale" content="nl_NL" />
-    <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="ARCHON.AI" />
-    <meta
-      property="og:title"
-      content="ARCHON.AI | Bouwsoftware voor facturatie, projecten en financieel inzicht" />
-    <meta
-      property="og:description"
-      content="Alles-in-een bouwsoftware voor facturatie, projectmanagement, planning en financieel inzicht. Archon helpt bouwbedrijven sneller offreren en slimmer samenwerken." />
-    <meta property="og:url" content="https://archon.ai/" />
-    <meta property="og:image" content="https://archon.ai/images/construction-hero.png" />
-    <meta property="og:image:alt" content="Archon dashboard overzicht voor bouwbedrijven" />
+  <!-- PWA Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="ARCHON.AI" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="msapplication-TileColor" content="#06b6d4" />
+  <meta name="msapplication-config" content="/browserconfig.xml" />
 
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta
-      name="twitter:title"
-      content="ARCHON.AI | Bouwsoftware voor facturatie, projecten en financieel inzicht" />
-    <meta
-      name="twitter:description"
-      content="Alles-in-een bouwsoftware voor facturatie, projectmanagement, planning en financieel inzicht." />
-    <meta name="twitter:image" content="https://archon.ai/images/construction-hero.png" />
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="/manifest.json" />
 
-    <script type="application/ld+json">
+  <!-- Apple Touch Icons -->
+  <link rel="apple-touch-icon" href="/icons/icon-152x152.png" />
+  <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152x152.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/icons/icon-180x180.png" />
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-32x32.png" />
+  <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-16x16.png" />
+  <link rel="icon" href="/favicon.svg" />
+
+  <!-- Service Worker Registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then((registration) => {
+            console.log('SW registered: ', registration);
+          })
+          .catch((registrationError) => {
+            console.log('SW registration failed: ', registrationError);
+          });
+      });
+    }
+  </script>
+
+  <meta property="og:locale" content="nl_NL" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="ARCHON.AI" />
+  <meta property="og:title" content="ARCHON.AI | Bouwsoftware voor facturatie, projecten en financieel inzicht" />
+  <meta property="og:description"
+    content="Alles-in-een bouwsoftware voor facturatie, projectmanagement, planning en financieel inzicht. Archon helpt bouwbedrijven sneller offreren en slimmer samenwerken." />
+  <meta property="og:url" content="https://archon.ai/" />
+  <meta property="og:image" content="https://archon.ai/images/construction-hero.png" />
+  <meta property="og:image:alt" content="Archon dashboard overzicht voor bouwbedrijven" />
+
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="ARCHON.AI | Bouwsoftware voor facturatie, projecten en financieel inzicht" />
+  <meta name="twitter:description"
+    content="Alles-in-een bouwsoftware voor facturatie, projectmanagement, planning en financieel inzicht." />
+  <meta name="twitter:image" content="https://archon.ai/images/construction-hero.png" />
+
+  <script type="application/ld+json">
       {
         "@context": "https://schema.org",
         "@graph": [
@@ -70,40 +97,49 @@
         ]
       }
     </script>
-    
-    <!-- Favicon -->
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    
-    <!-- Google Fonts: Sora (Display/Headings) + Inter (Body) + Fira Code (Monospace) -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;500;600&family=Sora:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    
-    <style>
-      /* Font family definitions */
-      :root {
-        --font-display: 'Sora', system-ui, sans-serif;
-        --font-body: 'Inter', system-ui, sans-serif;
-        --font-mono: 'Fira Code', monospace;
-      }
-      
-      body {
-        font-family: var(--font-body);
-      }
-      
-      h1, h2, h3, h4, h5, h6 {
-        font-family: var(--font-display);
-      }
-      
-      code, pre, .font-mono {
-        font-family: var(--font-mono);
-      }
-    </style>
-  </head>
 
-  <body class="dark">
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+  <!-- Google Fonts: Sora (Display/Headings) + Inter (Body) + Fira Code (Monospace) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;500;600&family=Sora:wght@400;500;600;700&display=swap"
+    rel="stylesheet" />
+
+  <style>
+    /* Font family definitions */
+    :root {
+      --font-display: 'Sora', system-ui, sans-serif;
+      --font-body: 'Inter', system-ui, sans-serif;
+      --font-mono: 'Fira Code', monospace;
+    }
+
+    body {
+      font-family: var(--font-body);
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+      font-family: var(--font-display);
+    }
+
+    code,
+    pre,
+    .font-mono {
+      font-family: var(--font-mono);
+    }
+  </style>
+</head>
+
+<body class="dark">
+  <div id="root"></div>
+  <script type="module" src="/src/main.tsx"></script>
+</body>
 
 </html>

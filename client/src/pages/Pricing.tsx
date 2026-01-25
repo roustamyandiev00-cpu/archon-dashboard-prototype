@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import {
   Check,
@@ -31,6 +31,7 @@ export default function Pricing() {
   const [loadingPlan, setLoadingPlan] = useState<string | null>(null);
   const [, navigate] = useLocation();
   const { user } = useAuth();
+  const autoTriggeredRef = useRef(false);
 
   const plans = [
     {
@@ -52,7 +53,7 @@ export default function Pricing() {
       color: "blue",
       cta: skipTrial ? "Start nu direct" : "Start 14 dagen gratis",
       popular: false,
-      disabled: true
+      disabled: false
     },
     {
       id: "professional",
@@ -153,11 +154,11 @@ export default function Pricing() {
 
       // For demo mode, activate plan directly
       await activateDemoPlan(plan.planId);
-      
-      const trialMessage = skipTrial 
+
+      const trialMessage = skipTrial
         ? "Je account is direct geactiveerd!"
         : "Je 14 dagen gratis trial is gestart!";
-      
+
       toast.success("✨ " + trialMessage, {
         description: `Je hebt nu toegang tot het ${plan.name} plan. Ga naar modules om functies te activeren.`,
         duration: 5000,
@@ -166,9 +167,9 @@ export default function Pricing() {
       navigate("/modules");
     } catch (error) {
       console.error("Subscription error:", error);
-      
+
       const errorMessage = error instanceof Error ? error.message : "Onbekende fout";
-      
+
       if (errorMessage === "NOT_AUTHENTICATED") {
         toast.error("Je moet ingelogd zijn", {
           description: "Log in of maak een account aan.",
@@ -183,6 +184,25 @@ export default function Pricing() {
       setLoadingPlan(null);
     }
   };
+
+  // Auto-subscribe from URL param
+  useEffect(() => {
+    if (autoTriggeredRef.current || !user) return;
+
+    const params = new URLSearchParams(window.location.search);
+    const planId = params.get("plan");
+
+    if (planId) {
+      const planToSelect = plans.find(p => p.planId === planId);
+      if (planToSelect && !planToSelect.disabled) {
+        autoTriggeredRef.current = true;
+        // Small delay to allow UI to settle and toast to be visible
+        setTimeout(() => {
+          handleSubscribe(planToSelect);
+        }, 500);
+      }
+    }
+  }, [user]); // Run when user is ready
 
   return (
     <div className="space-y-8 pb-20">
@@ -408,7 +428,7 @@ export default function Pricing() {
             {skipTrial ? "Begin direct met je abonnement" : "Start vandaag nog zonder risico"}
           </h3>
           <p className="text-muted-foreground max-w-2xl">
-            {skipTrial 
+            {skipTrial
               ? "Spring de trial over en krijg direct volledige toegang tot alle functies. Je betaalt meteen maar krijgt ook alle voordelen direct."
               : "Kies je plan en betaal via Stripe. De eerste 14 dagen zijn volledig gratis. Je kunt op elk moment opzeggen binnen de proefperiode zonder kosten."
             }
